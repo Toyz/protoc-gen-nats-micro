@@ -22,19 +22,16 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) *
 // {{.GoName}} sends a {{.GoName}} request to the service via NATS.
 // Returns an error if the request fails or the service returns an error.
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
-  subject := "{{ToSnakeCase .GoName}}"
-  if c.subjectPrefix != "" {
-    subject = c.subjectPrefix + "." + subject
-  }
+  subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
 
   data, err := proto.Marshal(req)
   if err != nil {
-    return nil, fmt.Errorf("marshal request: %w", err)
+    return nil, err
   }
 
   msg, err := c.nc.RequestWithContext(ctx, subject, data)
   if err != nil {
-    return nil, fmt.Errorf("nats request: %w", err)
+    return nil, err
   }
 
   // Check if this is an error response from the service
@@ -50,7 +47,7 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 
   var resp {{.Output.GoIdent.GoName}}
   if err := proto.Unmarshal(msg.Data, &resp); err != nil {
-    return nil, fmt.Errorf("unmarshal response: %w", err)
+    return nil, err
   }
 
   return &resp, nil

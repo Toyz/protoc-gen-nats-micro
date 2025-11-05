@@ -136,7 +136,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 	if err != nil {
 		// Check if error implements custom status code/message/data methods
 		code := {{$.Service.GoName}}ErrCodeInternal
-		message := fmt.Sprintf("{{.GoName}} failed: %v", err)
+		message := err.Error()
 		var data []byte
 
 		// Check for NatsErrorCode() string method
