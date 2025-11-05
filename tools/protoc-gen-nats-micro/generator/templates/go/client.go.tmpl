@@ -5,7 +5,8 @@ type {{.Service.GoName}}NatsClient struct {
   subjectPrefix string
 }
 
-// New{{.Service.GoName}}NatsClient creates a new NATS client
+// New{{.Service.GoName}}NatsClient creates a new NATS client for {{.Service.GoName}}.
+// The client sends requests over NATS using protobuf serialization.
 func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) *{{.Service.GoName}}NatsClient {
   c := &{{.Service.GoName}}NatsClient{
     nc:            nc,
@@ -18,6 +19,8 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) *
 }
 
 {{range .Service.Methods -}}
+// {{.GoName}} sends a {{.GoName}} request to the service via NATS.
+// Returns an error if the request fails or the service returns an error.
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
   subject := "{{ToSnakeCase .GoName}}"
   if c.subjectPrefix != "" {
@@ -54,8 +57,11 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 }
 
 {{end -}}
+// NatsClientOption configures the {{.Service.GoName}}NatsClient
 type NatsClientOption func(*{{.Service.GoName}}NatsClient)
 
+// WithNatsClientSubjectPrefix overrides the subject prefix for the client.
+// By default, the prefix from the proto definition is used.
 func WithNatsClientSubjectPrefix(prefix string) NatsClientOption {
   return func(c *{{.Service.GoName}}NatsClient) { c.subjectPrefix = prefix }
 }
