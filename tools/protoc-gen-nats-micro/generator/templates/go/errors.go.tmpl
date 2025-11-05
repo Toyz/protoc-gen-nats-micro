@@ -25,21 +25,6 @@ func (e *{{.Service.GoName}}Error) NatsErrorData() []byte {
 	return nil
 }
 
-// NatsStatusCoder is an interface that errors can implement to provide custom NATS error codes
-type NatsStatusCoder interface {
-	NatsErrorCode() string
-}
-
-// NatsErrorMessager is an interface that errors can implement to provide custom NATS error messages
-type NatsErrorMessager interface {
-	NatsErrorMessage() string
-}
-
-// NatsErrorDataProvider is an interface that errors can implement to provide custom NATS error data
-type NatsErrorDataProvider interface {
-	NatsErrorData() []byte
-}
-
 // Error code constants for {{.Service.GoName}}
 const (
 	{{.Service.GoName}}ErrCodeInvalidArgument = "INVALID_ARGUMENT"

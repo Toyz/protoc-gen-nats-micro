@@ -599,6 +599,7 @@ func (e *OutOfStockError) Error() string {
     return fmt.Sprintf("product %s: requested %d, only %d available", e.ProductID, e.Requested, e.Available)
 }
 
+// Implement these methods to control NATS error response:
 func (e *OutOfStockError) NatsErrorCode() string {
     return productv1.ProductServiceErrCodeUnavailable
 }
@@ -637,9 +638,11 @@ func (s *productService) GetProduct(ctx context.Context, req *productv1.GetProdu
 ```
 
 **Custom error interfaces:**
-- `NatsStatusCoder` - Implement `NatsErrorCode() string` to set custom error codes
-- `NatsErrorMessager` - Implement `NatsErrorMessage() string` to set custom error messages
-- `NatsErrorDataProvider` - Implement `NatsErrorData() []byte` to attach custom data
+- Implement `NatsErrorCode() string` to set custom error codes
+- Implement `NatsErrorMessage() string` to set custom error messages
+- Implement `NatsErrorData() []byte` to attach custom data
+
+The handler checks for these methods using inline interface assertions (no additional dependencies or interface types needed).
 
 Available error codes:
 - `INVALID_ARGUMENT` - Bad request data

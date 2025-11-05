@@ -109,18 +109,21 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 
 	resp, err := h.impl.{{.GoName}}(ctx, &msg)
 	if err != nil {
-		// Check if error implements custom status code interface
+		// Check if error implements custom status code/message/data methods
 		code := {{$.Service.GoName}}ErrCodeInternal
 		message := fmt.Sprintf("{{.GoName}} failed: %v", err)
 		var data []byte
 
-		if statusCoder, ok := err.(NatsStatusCoder); ok {
-			code = statusCoder.NatsErrorCode()
+		// Check for NatsErrorCode() string method
+		if coder, ok := err.(interface{ NatsErrorCode() string }); ok {
+			code = coder.NatsErrorCode()
 		}
-		if messager, ok := err.(NatsErrorMessager); ok {
+		// Check for NatsErrorMessage() string method
+		if messager, ok := err.(interface{ NatsErrorMessage() string }); ok {
 			message = messager.NatsErrorMessage()
 		}
-		if dataProvider, ok := err.(NatsErrorDataProvider); ok {
+		// Check for NatsErrorData() []byte method
+		if dataProvider, ok := err.(interface{ NatsErrorData() []byte }); ok {
 			data = dataProvider.NatsErrorData()
 		}
 
