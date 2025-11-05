@@ -291,16 +291,20 @@ func main() {
 
 ## Generated Code
 
-From a single `.proto` file, the plugin generates:
+From a single `.proto` file, **this plugin** generates:
 
 ```
 gen/order/v1/
-├── service.pb.go           # Standard protobuf messages
-├── service_nats.pb.go      # NATS service and client (this plugin)
-├── service_grpc.pb.go      # gRPC service and client (protoc-gen-go-grpc)
-├── service.pb.gw.go        # REST gateway handlers (grpc-gateway)
-└── service.swagger.yaml    # OpenAPI specification
+├── service.pb.go           # Standard protobuf messages (protoc-gen-go)
+└── service_nats.pb.go      # NATS service and client (protoc-gen-nats-micro)
 ```
+
+**This example project** also uses additional plugins for demonstration:
+- `protoc-gen-go-grpc` → gRPC services (`service_grpc.pb.go`)
+- `protoc-gen-grpc-gateway` → REST gateway (`service.pb.gw.go`)
+- `protoc-gen-openapiv2` → OpenAPI specs (`service.swagger.yaml`)
+
+These are **optional** - you only need `protoc-gen-go` and `protoc-gen-nats-micro` for NATS microservices.
 
 ### NATS Service Interface
 
@@ -467,16 +471,20 @@ Clients automatically target the correct version based on the imported package.
 
 ### Code Generation Pipeline
 
+This plugin integrates with the standard protobuf toolchain:
+
 ```
 proto files
     ↓
-buf generate
+buf generate (or protoc)
     ↓
 ├─→ protoc-gen-go          → messages (service.pb.go)
+└─→ protoc-gen-nats-micro  → NATS (service_nats.pb.go) ⭐
+
+Optional (used in this example project):
 ├─→ protoc-gen-go-grpc     → gRPC (service_grpc.pb.go)
 ├─→ protoc-gen-grpc-gateway → REST (service.pb.gw.go)
-├─→ protoc-gen-openapiv2   → OpenAPI (service.swagger.yaml)
-└─→ protoc-gen-nats-micro  → NATS (service_nats.pb.go)
+└─→ protoc-gen-openapiv2   → OpenAPI (service.swagger.yaml)
 ```
 
 ### Two-Phase Build
