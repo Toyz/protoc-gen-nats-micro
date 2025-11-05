@@ -10,6 +10,36 @@ func (e *{{.Service.GoName}}Error) Error() string {
 	return fmt.Sprintf("[%s] %s: %s", e.Code, e.Method, e.Message)
 }
 
+// NatsErrorCode returns the NATS error code for this error
+func (e *{{.Service.GoName}}Error) NatsErrorCode() string {
+	return e.Code
+}
+
+// NatsErrorMessage returns the NATS error message for this error
+func (e *{{.Service.GoName}}Error) NatsErrorMessage() string {
+	return e.Message
+}
+
+// NatsErrorData returns optional error data (nil for basic errors)
+func (e *{{.Service.GoName}}Error) NatsErrorData() []byte {
+	return nil
+}
+
+// NatsStatusCoder is an interface that errors can implement to provide custom NATS error codes
+type NatsStatusCoder interface {
+	NatsErrorCode() string
+}
+
+// NatsErrorMessager is an interface that errors can implement to provide custom NATS error messages
+type NatsErrorMessager interface {
+	NatsErrorMessage() string
+}
+
+// NatsErrorDataProvider is an interface that errors can implement to provide custom NATS error data
+type NatsErrorDataProvider interface {
+	NatsErrorData() []byte
+}
+
 // Error code constants for {{.Service.GoName}}
 const (
 	{{.Service.GoName}}ErrCodeInvalidArgument = "INVALID_ARGUMENT"

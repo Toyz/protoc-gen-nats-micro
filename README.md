@@ -555,15 +555,16 @@ See `examples/complex-client` for examples of:
 
 The generated code includes structured error types with helper functions for type-safe error checking:
 
+**Client-side error handling:**
 ```go
 client := productv1.NewProductServiceNatsClient(nc)
 product, err := client.GetProduct(ctx, &productv1.GetProductRequest{Id: "123"})
 if err != nil {
-    if productv1.IsNotFound(err) {
+    if productv1.IsProductServiceNotFound(err) {
         log.Println("Product not found")
         return
     }
-    if productv1.IsInvalidArgument(err) {
+    if productv1.IsProductServiceInvalidArgument(err) {
         log.Println("Invalid request:", err)
         return
     }
@@ -571,17 +572,74 @@ if err != nil {
 }
 ```
 
-Service implementations return structured errors:
+**Server-side error responses:**
 
+Service implementations can return errors in three ways:
+
+1. **Return generated error types** (recommended):
 ```go
 func (s *productService) GetProduct(ctx context.Context, req *productv1.GetProductRequest) (*productv1.GetProductResponse, error) {
     product, exists := s.products[req.Id]
     if !exists {
-        return nil, fmt.Errorf("product not found: %s", req.Id)
+        return nil, productv1.NewProductServiceNotFoundError("GetProduct", "product not found")
     }
     return &productv1.GetProductResponse{Product: product}, nil
 }
 ```
+
+2. **Implement custom error interfaces** (advanced):
+```go
+type OutOfStockError struct {
+    ProductID string
+    Requested int
+    Available int
+}
+
+func (e *OutOfStockError) Error() string {
+    return fmt.Sprintf("product %s: requested %d, only %d available", e.ProductID, e.Requested, e.Available)
+}
+
+func (e *OutOfStockError) NatsErrorCode() string {
+    return productv1.ProductServiceErrCodeUnavailable
+}
+
+func (e *OutOfStockError) NatsErrorMessage() string {
+    return e.Error()
+}
+
+func (e *OutOfStockError) NatsErrorData() []byte {
+    // Optional: return custom error data (e.g., JSON, protobuf)
+    return nil
+}
+
+// Now you can return your custom error:
+func (s *productService) CreateOrder(ctx context.Context, req *productv1.CreateOrderRequest) (*productv1.CreateOrderResponse, error) {
+    if stock < req.Quantity {
+        return nil, &OutOfStockError{
+            ProductID: req.ProductId,
+            Requested: int(req.Quantity),
+            Available: stock,
+        }
+    }
+    // ...
+}
+```
+
+3. **Return generic errors** (falls back to INTERNAL):
+```go
+func (s *productService) GetProduct(ctx context.Context, req *productv1.GetProductRequest) (*productv1.GetProductResponse, error) {
+    product, err := s.db.FindProduct(req.Id)
+    if err != nil {
+        return nil, err // Will be sent as INTERNAL error
+    }
+    return &productv1.GetProductResponse{Product: product}, nil
+}
+```
+
+**Custom error interfaces:**
+- `NatsStatusCoder` - Implement `NatsErrorCode() string` to set custom error codes
+- `NatsErrorMessager` - Implement `NatsErrorMessage() string` to set custom error messages
+- `NatsErrorDataProvider` - Implement `NatsErrorData() []byte` to attach custom data
 
 Available error codes:
 - `INVALID_ARGUMENT` - Bad request data
@@ -589,7 +647,7 @@ Available error codes:
 - `ALREADY_EXISTS` - Resource already exists
 - `PERMISSION_DENIED` - Permission denied
 - `UNAUTHENTICATED` - Authentication required
-- `INTERNAL` - Server error
+- `INTERNAL` - Server error (default for unhandled errors)
 - `UNAVAILABLE` - Service unavailable
 
 ### REST Gateway
