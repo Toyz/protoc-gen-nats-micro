@@ -268,7 +268,7 @@ func main() {
 
 	// Register product service (subject prefix "api.v1" read from proto!)
 	productSvc := &productService{products: make(map[string]*productv1.Product)}
-	_, err = productv1.RegisterProductServiceHandlers(nc, productSvc)
+	productService, err := productv1.RegisterProductServiceHandlers(nc, productSvc)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func main() {
 		orders:   make(map[string]*orderv1.Order),
 		products: productSvc,
 	}
-	_, err = orderv1.RegisterOrderServiceHandlers(nc, orderSvc)
+	orderServiceV1, err := orderv1.RegisterOrderServiceHandlers(nc, orderSvc)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -290,17 +290,29 @@ func main() {
 		orders:   make(map[string]*orderv2.Order),
 		products: productSvc,
 	}
-	_, err = orderv2.RegisterOrderServiceHandlers(nc, orderSvcV2)
+	orderServiceV2, err := orderv2.RegisterOrderServiceHandlers(nc, orderSvcV2)
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("✓ Registered OrderService v2")
 
-	log.Println("\nServices available:")
-	log.Println("  Products: api.v1.create_product, get_product, update_product, delete_product, search_products")
-	log.Println("  Orders v1: api.v1.create_order, get_order, list_orders, update_order_status")
-	log.Println("  Orders v2: api.v2.create_order, get_order, list_orders, update_order_status")
-	log.Println("\nServer running. Press Ctrl+C to stop.")
+	// Print all service endpoints
+	log.Println("\n📡 ProductService Endpoints:")
+	for _, ep := range productService.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n📡 OrderService V1 Endpoints:")
+	for _, ep := range orderServiceV1.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n📡 OrderService V2 Endpoints:")
+	for _, ep := range orderServiceV2.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n✅ Server running. Press Ctrl+C to stop.")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)

@@ -27,6 +27,17 @@ func main() {
 	productClient := productv1.NewProductServiceNatsClient(nc)
 	orderClient := orderv1.NewOrderServiceNatsClient(nc)
 
+	// Print client endpoints
+	log.Println("\n📡 ProductService Client Endpoints:")
+	for _, ep := range productClient.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n📡 OrderService Client Endpoints:")
+	for _, ep := range orderClient.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -144,6 +155,12 @@ func main() {
 
 	// Subject prefix "api.v2" read from proto!
 	orderClientV2 := orderv2.NewOrderServiceNatsClient(nc)
+
+	// Print v2 client endpoints
+	log.Println("\n📡 OrderService V2 Client Endpoints:")
+	for _, ep := range orderClientV2.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
 
 	// Create order via v2
 	log.Println("\n→ Creating order via v2...")

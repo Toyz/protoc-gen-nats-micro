@@ -17,15 +17,22 @@ type {{.Service.GoName}}EndpointInfo struct {
 	Subject string `json:"subject"` // NATS subject (e.g., "api.v1.create_product")
 }
 
-// {{.Service.GoName}}Service wraps a NATS micro.Service with additional service-specific methods
-type {{.Service.GoName}}Service struct {
+// {{.Service.GoName}}Service is the interface for the registered NATS micro service
+// This interface allows for easier dependency injection and testing
+type {{.Service.GoName}}Service interface {
+	micro.Service
+	Endpoints() []{{.Service.GoName}}EndpointInfo
+}
+
+// {{ToLowerFirst .Service.GoName}}Service is the concrete implementation of {{.Service.GoName}}Service
+type {{ToLowerFirst .Service.GoName}}Service struct {
 	micro.Service
 	subjectPrefix string
 }
 
 // Endpoints returns information about all service endpoints
 // This is useful for debugging, monitoring, and service discovery
-func (s *{{.Service.GoName}}Service) Endpoints() []{{.Service.GoName}}EndpointInfo {
+func (s *{{ToLowerFirst .Service.GoName}}Service) Endpoints() []{{.Service.GoName}}EndpointInfo {
 	return []{{.Service.GoName}}EndpointInfo{
 {{- range .Service.Methods}}
 		{Name: "{{.GoName}}", Subject: s.subjectPrefix + ".{{ToSnakeCase .GoName}}"},
@@ -45,13 +52,13 @@ func (s *{{.Service.GoName}}Service) Endpoints() []{{.Service.GoName}}EndpointIn
 // Configuration options: WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithTimeout()
 // Metadata options: WithMetadata() (replace), WithAdditionalMetadata() (merge)
 // Handler options: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
-func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (*{{.Service.GoName}}Service, error) {
+func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) ({{.Service.GoName}}Service, error) {
 	cfg := &registerConfig{
 		name:          "{{.Options.Name}}",
 		version:       "{{.Options.Version}}",
 		description:   "{{.Options.Description}}",
 		subjectPrefix: "{{.Options.SubjectPrefix}}",
-		timeout:       time.Duration({{.Options.Timeout.Nanoseconds}}), // Service-level timeout (0 = no timeout)
+		timeout:       {{.Options.Timeout.Seconds}} * time.Second, // Service-level timeout (0 = no timeout)
 		metadata:      map[string]string{
 {{- range $key, $value := .Options.Metadata}}
 			"{{$key}}": "{{$value}}",
@@ -104,7 +111,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		}
 	}
 
-	return &{{.Service.GoName}}Service{
+	return &{{ToLowerFirst .Service.GoName}}Service{
 		Service:       svc,
 		subjectPrefix: cfg.subjectPrefix,
 	}, nil

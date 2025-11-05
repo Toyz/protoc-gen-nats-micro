@@ -1,5 +1,14 @@
 {{- /* Client implementation */ -}}
-// {{.Service.GoName}}NatsClient is the NATS client for {{.Service.GoName}}
+// {{.Service.GoName}}NatsClientInterface is the interface for the NATS client
+// This interface allows for easier dependency injection and testing
+type {{.Service.GoName}}NatsClientInterface interface {
+{{- range .Service.Methods}}
+  {{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
+{{- end}}
+  Endpoints() []{{.Service.GoName}}EndpointInfo
+}
+
+// {{.Service.GoName}}NatsClient is the concrete implementation of {{.Service.GoName}}NatsClientInterface
 type {{.Service.GoName}}NatsClient struct {
   nc            *nats.Conn
   subjectPrefix string
@@ -7,7 +16,7 @@ type {{.Service.GoName}}NatsClient struct {
 
 // New{{.Service.GoName}}NatsClient creates a new NATS client for {{.Service.GoName}}.
 // The client sends requests over NATS using protobuf serialization.
-func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) *{{.Service.GoName}}NatsClient {
+func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {{.Service.GoName}}NatsClientInterface {
   c := &{{.Service.GoName}}NatsClient{
     nc:            nc,
     subjectPrefix: "{{.Options.SubjectPrefix}}",
