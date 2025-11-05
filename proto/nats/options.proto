@@ -3,6 +3,7 @@ syntax = "proto3";
 package nats.micro;
 
 import "google/protobuf/descriptor.proto";
+import "google/protobuf/duration.proto";
 
 option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/nats/micro";
 
@@ -22,8 +23,23 @@ message ServiceOptions {
   
   // Service metadata (optional, key-value pairs for service discovery)
   map<string, string> metadata = 5;
+  
+  // Request timeout (optional, 0 means no timeout)
+  // This is the default timeout for all endpoints in this service
+  google.protobuf.Duration timeout = 6;
+}
+
+// Endpoint-level options for individual RPC methods
+message EndpointOptions {
+  // Request timeout (optional, 0 means use service default)
+  // Overrides the service-level timeout for this specific endpoint
+  google.protobuf.Duration timeout = 1;
 }
 
 extend google.protobuf.ServiceOptions {
   ServiceOptions service = 50001;
+}
+
+extend google.protobuf.MethodOptions {
+  EndpointOptions endpoint = 50002;
 }

@@ -28,6 +28,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		version:       "{{.Options.Version}}",
 		description:   "{{.Options.Description}}",
 		subjectPrefix: "{{.Options.SubjectPrefix}}",
+		timeout:       {{.Options.Timeout}}, // Service-level timeout (0 = no timeout)
 		metadata:      map[string]string{
 {{- range $key, $value := .Options.Metadata}}
 			"{{$key}}": "{{$value}}",
@@ -51,7 +52,10 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		return nil, fmt.Errorf("failed to add service: %w", err)
 	}
 
-	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{impl: impl}
+	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{
+		impl:    impl,
+		timeout: cfg.timeout,
+	}
 
 	// Map of endpoint names to their handlers
 	endpoints := map[string]micro.Handler{
@@ -82,18 +86,27 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 
 // {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
 type {{ToLowerFirst .Service.GoName}}Handlers struct {
-	impl {{.Service.GoName}}Nats
+	impl    {{.Service.GoName}}Nats
+	timeout time.Duration
 }
 
 {{range .Service.Methods -}}
 func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	// Create context with timeout if configured, otherwise use background context
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if h.timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, h.timeout)
+		defer cancel()
+	}
+
 	var msg {{.Input.GoIdent.GoName}}
 	if err := proto.Unmarshal(req.Data(), &msg); err != nil {
 		req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
 		return
 	}
 
-	resp, err := h.impl.{{.GoName}}(context.Background(), &msg)
+	resp, err := h.impl.{{.GoName}}(ctx, &msg)
 	if err != nil {
 		// Preserve the original error message for debugging
 		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("{{.GoName}} failed: %v", err), nil)
@@ -119,6 +132,7 @@ type registerConfig struct {
 	version       string
 	description   string
 	subjectPrefix string
+	timeout       time.Duration
 	metadata      map[string]string
 	statsHandler  micro.StatsHandler
 	doneHandler   micro.DoneHandler
@@ -141,6 +155,10 @@ func WithDescription(desc string) RegisterOption {
 
 func WithSubjectPrefix(prefix string) RegisterOption {
 	return func(c *registerConfig) { c.subjectPrefix = prefix }
+}
+
+func WithTimeout(timeout time.Duration) RegisterOption {
+	return func(c *registerConfig) { c.timeout = timeout }
 }
 
 func WithMetadata(metadata map[string]string) RegisterOption {

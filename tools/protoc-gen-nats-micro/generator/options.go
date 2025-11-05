@@ -1,6 +1,8 @@
 package generator
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 
@@ -14,6 +16,7 @@ type ServiceOptions struct {
 	Version       string
 	Description   string
 	Metadata      map[string]string
+	Timeout       time.Duration
 }
 
 // GetServiceOptions extracts service options from proto service definition
@@ -25,6 +28,7 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 		Description:   "",
 		SubjectPrefix: "",
 		Metadata:      make(map[string]string),
+		Timeout:       0, // No timeout by default
 	}
 
 	// Try to read the nats.micro.service extension
@@ -45,6 +49,9 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 			}
 			if len(svcOpts.Metadata) > 0 {
 				opts.Metadata = svcOpts.Metadata
+			}
+			if svcOpts.Timeout != nil {
+				opts.Timeout = svcOpts.Timeout.AsDuration()
 			}
 		}
 	}

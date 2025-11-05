@@ -15,8 +15,13 @@
 go.work
 go.work.sum
 
-# Generated code
-gen/
+# Generated code (except proto extensions needed by the plugin)
+gen/*
+!gen/nats/
+gen/nats/*
+!gen/nats/micro/
+gen/nats/micro/*
+!gen/nats/micro/options.pb.go
 
 # Build output
 tools/protoc-gen-nats-micro/protoc-gen-nats-micro

@@ -1,6 +1,13 @@
 # protoc-gen-nats-micro
+**Codename: Apex**
+
+[![Go Version](https://img.shields.io/github/go-mod/go-version/toyz/protoc-gen-nats-micro)](https://github.com/Toyz/protoc-gen-nats-micro)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Built by Helba](https://img.shields.io/badge/built%20by-helba.ai-cyan)](https://helba.ai)
 
 A Protocol Buffers compiler plugin that generates type-safe NATS microservice code. Define services in protobuf, get production-ready NATS microservices with automatic service discovery, load balancing, and zero configuration.
+
+> *The apex predator of NATS code generation.*
 
 ## Overview
 
@@ -17,7 +24,29 @@ All from a single protobuf definition.
 
 **Why this exists:**
 
-The NATS ecosystem lacked a modern, maintained code generation solution comparable to gRPC. Existing tools like nRPC were abandoned and didn't integrate with modern protobuf toolchains. This project fills that gap.
+The NATS ecosystem lacked a modern, maintained code generation solution comparable to gRPC. Existing tools like [nRPC](https://github.com/nats-rpc/nrpc) were abandoned, used outdated patterns, and didn't integrate with the official `nats.io/micro` framework or modern protobuf toolchains. This project fills that gap.
+
+**What makes this different:**
+
+- **Modern micro.Service framework** - Built on NATS' official microservices API
+- **Type-safe error handling** - Generated error constants
+- **Context propagation** - Proper context handling with configurable timeouts
+- **google.protobuf.Duration** - Industry-standard timeout configuration
+- **Multi-level timeouts** - Service defaults, endpoint overrides, runtime options
+- **Zero configuration** - Everything defined in proto files
+- **Production-ready** - Clean generated code, elegant abstractions
+
+**Compared to nRPC:**
+
+| Feature | protoc-gen-nats-micro (Apex) | nRPC |
+|---------|------------------------------|------|
+| **NATS Framework** | micro.Service (official) | Manual MsgHandler |
+| **Context Support** | With timeout handling | Basic |
+| **Error Constants** | Generated type-safe | Magic strings |
+| **Timeout Config** | Proto Duration (multi-level) | Not supported |
+| **Service Discovery** | Automatic | Manual setup |
+| **Maintenance** | Active | Abandoned (alpha) |
+| **Generated Code** | Modern, idiomatic | Basic |
 
 **Key advantages over gRPC for internal microservices:**
 
@@ -39,6 +68,10 @@ This plugin lets you generate all three from the same proto files and choose bas
 
 - **Zero configuration** - Service metadata lives in proto files
 - **Type-safe generated code** - Compile-time safety for requests/responses
+- **Context propagation** - Proper context handling with timeout support
+- **Configurable timeouts** - Service-level, endpoint-level, and runtime options using `google.protobuf.Duration`
+- **Generated error constants** - Type-safe error codes (no magic strings)
+- **Elegant code generation** - Clean, idiomatic Go using modern patterns
 - **Multi-language ready** - Template system supports Go (implemented), Rust, TypeScript (planned)
 - **Standard tooling** - Works with `buf`, `protoc`, and existing protobuf workflows
 - **Service discovery** - Automatic via NATS, no Consul/etcd needed
@@ -95,6 +128,7 @@ package order.v1;
 
 import "nats/options.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
 
 service OrderService {
   option (nats.micro.service) = {
@@ -102,6 +136,7 @@ service OrderService {
     name: "order_service"
     version: "1.0.0"
     description: "Order management service"
+    timeout: {seconds: 30}  // Default 30s timeout for all endpoints
   };
 
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
@@ -114,6 +149,15 @@ service OrderService {
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
     option (google.api.http) = {
       get: "/v1/orders/{id}"
+    };
+  }
+  
+  rpc SearchOrders(SearchOrdersRequest) returns (SearchOrdersResponse) {
+    option (nats.micro.endpoint) = {
+      timeout: {seconds: 60}  // Override: 60s for search operations
+    };
+    option (google.api.http) = {
+      get: "/v1/orders/search"
     };
   }
 }
@@ -176,6 +220,7 @@ func (s *orderService) GetOrder(
 package main
 
 import (
+    "time"
     "github.com/nats-io/nats.go"
     orderv1 "yourmodule/gen/order/v1"
 )
@@ -191,13 +236,19 @@ func main() {
         orders: make(map[string]*orderv1.Order),
     }
 
-    // Subject prefix read from proto automatically
-    _, err = orderv1.RegisterOrderService(nc, svc)
+    // Register with configuration from proto (30s default timeout)
+    // Service automatically registered at "api.v1.order_service"
+    _, err = orderv1.RegisterOrderServiceHandlers(nc, svc)
     if err != nil {
         log.Fatal(err)
     }
+    
+    // Or override timeout at runtime
+    _, err = orderv1.RegisterOrderServiceHandlers(nc, svc,
+        orderv1.WithTimeout(45 * time.Second),
+    )
 
-    // Service is now discoverable at "api.v1.order_service"
+    // Service is now discoverable with automatic load balancing
     select {} // Keep running
 }
 ```
@@ -278,6 +329,7 @@ Service configuration is defined in proto files using custom options:
 
 ```protobuf
 import "nats/options.proto";
+import "google/protobuf/duration.proto";
 
 service OrderService {
   option (nats.micro.service) = {
@@ -285,20 +337,59 @@ service OrderService {
     name: "order_service"           // Service name for discovery
     version: "1.0.0"                // Semantic version
     description: "Order management" // Human-readable description
+    timeout: {seconds: 30}          // Default timeout for all endpoints
   };
+  
+  rpc SlowOperation(Request) returns (Response) {
+    option (nats.micro.endpoint) = {
+      timeout: {seconds: 120}       // Override timeout for this endpoint
+    };
+  }
 }
 ```
 
 These values are read at code generation time and embedded in the generated code. No runtime configuration files needed.
+
+### Timeout Configuration
+
+Timeouts can be configured at three levels (in order of precedence):
+
+1. **Runtime override** (highest priority):
+   ```go
+   orderv1.RegisterOrderServiceHandlers(nc, svc,
+       orderv1.WithTimeout(45 * time.Second),
+   )
+   ```
+
+2. **Endpoint-level** (per-method in proto):
+   ```protobuf
+   rpc SearchProducts(...) returns (...) {
+     option (nats.micro.endpoint) = {
+       timeout: {seconds: 60}  // This method gets 60s
+     };
+   }
+   ```
+
+3. **Service-level** (default for all methods):
+   ```protobuf
+   service ProductService {
+     option (nats.micro.service) = {
+       timeout: {seconds: 30}  // All methods default to 30s
+     };
+   }
+   ```
+
+If no timeout is configured, handlers use `context.Background()` with no timeout.
 
 ### Runtime Overrides (Optional)
 
 While configuration lives in proto files, you can override at runtime:
 
 ```go
-orderv1.RegisterOrderService(nc, svc,
+orderv1.RegisterOrderServiceHandlers(nc, svc,
     orderv1.WithSubjectPrefix("custom.prefix"),
     orderv1.WithVersion("2.0.0"),
+    orderv1.WithTimeout(45 * time.Second),
 )
 ```
 
@@ -310,13 +401,13 @@ Run multiple service versions simultaneously using subject prefix isolation:
 // Version 1 service
 import orderv1 "yourmodule/gen/order/v1"
 
-orderv1.RegisterOrderService(nc, svcV1)
+orderv1.RegisterOrderServiceHandlers(nc, svcV1)
 // Registered at: api.v1.order_service.*
 
 // Version 2 service  
 import orderv2 "yourmodule/gen/order/v2"
 
-orderv2.RegisterOrderService(nc, svcV2)
+orderv2.RegisterOrderServiceHandlers(nc, svcV2)
 // Registered at: api.v2.order_service.*
 
 // Clients choose version by import
@@ -414,7 +505,6 @@ The generated code includes structured error types with helper functions for typ
 client := productv1.NewProductServiceNatsClient(nc)
 product, err := client.GetProduct(ctx, &productv1.GetProductRequest{Id: "123"})
 if err != nil {
-    // Check error type using generated helpers
     if productv1.IsNotFound(err) {
         log.Println("Product not found")
         return
@@ -423,19 +513,17 @@ if err != nil {
         log.Println("Invalid request:", err)
         return
     }
-    // Handle other errors
     log.Fatal("Unexpected error:", err)
 }
 ```
 
-Service implementations can return semantic errors:
+Service implementations return structured errors:
 
 ```go
 func (s *productService) GetProduct(ctx context.Context, req *productv1.GetProductRequest) (*productv1.GetProductResponse, error) {
     product, exists := s.products[req.Id]
     if !exists {
-        // Return structured error that client can check
-        return nil, productv1.NewNotFoundError("GetProduct", fmt.Sprintf("product %s not found", req.Id))
+        return nil, fmt.Errorf("product not found: %s", req.Id)
     }
     return &productv1.GetProductResponse{Product: product}, nil
 }
@@ -546,4 +634,10 @@ MIT License - See LICENSE file for details
 
 ## Author
 
-Built as an R&D exploration of NATS-based microservice patterns with modern protobuf tooling.
+Built by [Helba](https://helba.ai) - Digital Architect specializing in high-performance backend systems.
+
+An R&D exploration of NATS-based microservice patterns with modern protobuf tooling, pushing the boundaries of what's possible with code generation.
+
+---
+
+*"The apex predator of NATS code generation."*
