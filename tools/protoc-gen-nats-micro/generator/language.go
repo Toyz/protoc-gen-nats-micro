@@ -76,11 +76,11 @@ func GetLanguage(name string) (Language, error) {
 	switch strings.ToLower(name) {
 	case "go", "golang":
 		return NewGoLanguage(), nil
+	case "typescript", "ts":
+		return NewTypeScriptLanguage(), nil
 	// Future languages:
 	// case "rust":
 	//   return NewRustLanguage(), nil
-	// case "typescript", "ts":
-	//   return NewTypeScriptLanguage(), nil
 	default:
 		return nil, fmt.Errorf("unsupported language: %s", name)
 	}

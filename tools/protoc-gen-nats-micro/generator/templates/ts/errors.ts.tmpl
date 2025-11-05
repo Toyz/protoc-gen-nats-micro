@@ -1,0 +1,145 @@
+{{- /* Error types and helpers */ -}}
+/**
+ * {{.Service.GoName}}Error represents a structured error from {{.Service.GoName}}
+ */
+export class {{.Service.GoName}}Error extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly method: string,
+    message: string,
+    public readonly data?: Uint8Array
+  ) {
+    super(message);
+    this.name = '{{.Service.GoName}}Error';
+    Object.setPrototypeOf(this, {{.Service.GoName}}Error.prototype);
+  }
+
+  toString(): string {
+    return `[${this.code}] ${this.method}: ${this.message}`;
+  }
+}
+
+/**
+ * Error code constants for {{.Service.GoName}}
+ */
+export enum {{.Service.GoName}}ErrorCode {
+  INVALID_ARGUMENT = 'INVALID_ARGUMENT',
+  NOT_FOUND = 'NOT_FOUND',
+  ALREADY_EXISTS = 'ALREADY_EXISTS',
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+  UNAUTHENTICATED = 'UNAUTHENTICATED',
+  INTERNAL = 'INTERNAL',
+  UNAVAILABLE = 'UNAVAILABLE',
+}
+
+/**
+ * Type guard to check if an error is a {{.Service.GoName}}Error
+ */
+export function is{{.Service.GoName}}Error(error: unknown): error is {{.Service.GoName}}Error {
+  return error instanceof {{.Service.GoName}}Error;
+}
+
+/**
+ * Check if the error is an invalid argument error
+ */
+export function is{{.Service.GoName}}InvalidArgument(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.INVALID_ARGUMENT;
+}
+
+/**
+ * Check if the error is a not found error
+ */
+export function is{{.Service.GoName}}NotFound(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.NOT_FOUND;
+}
+
+/**
+ * Check if the error is an already exists error
+ */
+export function is{{.Service.GoName}}AlreadyExists(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.ALREADY_EXISTS;
+}
+
+/**
+ * Check if the error is a permission denied error
+ */
+export function is{{.Service.GoName}}PermissionDenied(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.PERMISSION_DENIED;
+}
+
+/**
+ * Check if the error is an unauthenticated error
+ */
+export function is{{.Service.GoName}}Unauthenticated(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.UNAUTHENTICATED;
+}
+
+/**
+ * Check if the error is an internal error
+ */
+export function is{{.Service.GoName}}Internal(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.INTERNAL;
+}
+
+/**
+ * Check if the error is an unavailable error
+ */
+export function is{{.Service.GoName}}Unavailable(error: unknown): boolean {
+  return is{{.Service.GoName}}Error(error) && error.code === {{.Service.GoName}}ErrorCode.UNAVAILABLE;
+}
+
+/**
+ * Extract the error code from an error, returns empty string if not a {{.Service.GoName}}Error
+ */
+export function get{{.Service.GoName}}ErrorCode(error: unknown): string {
+  return is{{.Service.GoName}}Error(error) ? error.code : '';
+}
+
+/**
+ * Create a new invalid argument error
+ */
+export function new{{.Service.GoName}}InvalidArgumentError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.INVALID_ARGUMENT, method, message);
+}
+
+/**
+ * Create a new not found error
+ */
+export function new{{.Service.GoName}}NotFoundError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.NOT_FOUND, method, message);
+}
+
+/**
+ * Create a new already exists error
+ */
+export function new{{.Service.GoName}}AlreadyExistsError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.ALREADY_EXISTS, method, message);
+}
+
+/**
+ * Create a new permission denied error
+ */
+export function new{{.Service.GoName}}PermissionDeniedError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.PERMISSION_DENIED, method, message);
+}
+
+/**
+ * Create a new unauthenticated error
+ */
+export function new{{.Service.GoName}}UnauthenticatedError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.UNAUTHENTICATED, method, message);
+}
+
+/**
+ * Create a new internal error
+ */
+export function new{{.Service.GoName}}InternalError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.INTERNAL, method, message);
+}
+
+/**
+ * Create a new unavailable error
+ */
+export function new{{.Service.GoName}}UnavailableError(method: string, message: string): {{.Service.GoName}}Error {
+  return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.UNAVAILABLE, method, message);
+}

@@ -31,11 +31,21 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 
 	// Generate file
 	filename := file.GeneratedFilenamePrefix + lang.FileExtension()
-	g := gen.NewGeneratedFile(filename, file.GoImportPath)
+	
+	// For non-Go languages, don't use Go import path
+	var importPath protogen.GoImportPath
+	if cfg.Language == "go" || cfg.Language == "golang" {
+		importPath = file.GoImportPath
+	}
+	g := gen.NewGeneratedFile(filename, importPath)
 
 	// Generate header (package, imports)
 	if goLang, ok := lang.(*GoLanguage); ok {
 		if err := goLang.GenerateHeader(g, file); err != nil {
+			return fmt.Errorf("generate header: %w", err)
+		}
+	} else if tsLang, ok := lang.(*TypeScriptLanguage); ok {
+		if err := tsLang.GenerateHeader(g, file); err != nil {
 			return fmt.Errorf("generate header: %w", err)
 		}
 	}

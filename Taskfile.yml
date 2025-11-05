@@ -16,10 +16,10 @@ tasks:
   generate:extensions:
     desc: Generate protobuf extensions (phase 1)
     cmds:
-      - buf generate --template buf.gen.extensions.yaml --path proto/nats/options.proto
+      - buf generate --path proto/nats/options.proto
     sources:
       - proto/nats/options.proto
-      - buf.gen.extensions.yaml
+      - buf.gen.yaml
     generates:
       - gen/nats/micro/options.pb.go
 
@@ -43,11 +43,11 @@ tasks:
     deps:
       - build:plugin
     cmds:
-      - buf generate
+      - buf generate --template examples/buf-configs/buf.gen.yaml
       - go run ./examples/openapi-merge -output gen/api.swagger.json
     sources:
       - proto/**/*.proto
-      - buf.gen.yaml
+      - examples/buf-configs/buf.gen.yaml
       - "{{.PLUGIN_BIN}}"
     generates:
       - gen/**/*.pb.go
@@ -55,6 +55,28 @@ tasks:
       - gen/**/*_nats.pb.go
       - gen/**/*.swagger.yaml
       - gen/api.swagger.json
+
+  # Phase 3b: Generate TypeScript code
+  generate:ts:
+    desc: Generate TypeScript protobuf code (NATS + protobuf-ts)
+    deps:
+      - build:plugin
+    cmds:
+      - buf generate --template examples/buf-configs/buf.gen.ts.yaml
+    sources:
+      - proto/**/*.proto
+      - examples/buf-configs/buf.gen.ts.yaml
+      - "{{.PLUGIN_BIN}}"
+    generates:
+      - gen/**/*.pb.ts
+      - gen/**/*_nats.pb.ts
+
+  # Generate all (Go + TypeScript)
+  generate:all:
+    desc: Generate all protobuf code (Go + TypeScript)
+    deps:
+      - generate
+      - generate:ts
 
   # Clean generated files
   clean:

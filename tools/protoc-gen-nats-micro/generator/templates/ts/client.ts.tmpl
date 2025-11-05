@@ -1,0 +1,97 @@
+{{- /* Client implementation */ -}}
+/**
+ * Endpoint information for {{.Service.GoName}}
+ */
+export interface {{.Service.GoName}}EndpointInfo {
+  name: string;
+  subject: string;
+}
+
+/**
+ * {{.Service.GoName}}NatsClient is the interface for the NATS client
+ * This interface allows for easier dependency injection and testing
+ */
+export interface I{{.Service.GoName}}NatsClient {
+{{- range .Service.Methods}}
+  {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}, opts?: RequestOptions): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
+  endpoints(): {{.Service.GoName}}EndpointInfo[];
+}
+
+/**
+ * Configuration options for {{.Service.GoName}}NatsClient
+ */
+export interface {{.Service.GoName}}ClientOptions {
+  subjectPrefix?: string;
+  timeout?: number; // milliseconds
+}
+
+/**
+ * {{.Service.GoName}}NatsClient is the concrete implementation
+ * The client sends requests over NATS using protobuf serialization.
+ */
+export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsClient {
+  private readonly nc: NatsConnection;
+  private readonly subjectPrefix: string;
+  private readonly timeout?: number;
+
+  /**
+   * Create a new NATS client for {{.Service.GoName}}
+   * @param nc - NATS connection
+   * @param options - Client configuration options
+   */
+  constructor(nc: NatsConnection, options?: {{.Service.GoName}}ClientOptions) {
+    this.nc = nc;
+    this.subjectPrefix = options?.subjectPrefix || '{{.Options.SubjectPrefix}}';
+    this.timeout = options?.timeout;
+  }
+
+{{range .Service.Methods -}}
+  /**
+   * {{.GoName}} sends a {{.GoName}} request to the service via NATS.
+   * @param request - The request message
+   * @param opts - Optional request options
+   * @returns Promise resolving to the response message
+   * @throws {{$.Service.GoName}}Error if the request fails or the service returns an error
+   */
+  async {{ToLowerFirst .GoName}}(
+    request: pb.{{.Input.GoIdent.GoName}},
+    opts?: RequestOptions
+  ): Promise<pb.{{.Output.GoIdent.GoName}}> {
+    const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
+    
+    // Serialize request
+    const data = pb.{{.Input.GoIdent.GoName}}.encode(request).finish();
+    
+    // Send request
+    const requestOpts: RequestOptions = {
+      ...opts,
+      timeout: opts?.timeout || this.timeout,
+    };
+    
+    const msg = await this.nc.request(subject, data, requestOpts);
+    
+    // Check for error response
+    const status = msg.headers?.get('Status');
+    if (status) {
+      const description = msg.headers?.get('Description') || 'Unknown error';
+      throw new {{$.Service.GoName}}Error(status, '{{.GoName}}', description, msg.data);
+    }
+    
+    // Deserialize response
+    return pb.{{.Output.GoIdent.GoName}}.decode(msg.data);
+  }
+
+{{end -}}
+  /**
+   * Returns information about all service endpoints this client can call.
+   * This is useful for debugging, monitoring, and introspection.
+   */
+  endpoints(): {{.Service.GoName}}EndpointInfo[] {
+    return [
+{{- range .Service.Methods}}
+      { name: '{{.GoName}}', subject: `${this.subjectPrefix}.{{ToSnakeCase .GoName}}` },
+{{- end}}
+    ];
+  }
+}

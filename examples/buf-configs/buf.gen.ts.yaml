@@ -1,0 +1,17 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # TypeScript protobuf generation using protoc-gen-ts
+  - remote: buf.build/community/timostamm-protobuf-ts
+    out: gen
+    opt:
+      - generate_dependencies
+      - long_type_string
+  
+  # Our custom NATS micro TypeScript generation
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro.exe
+    out: gen
+    opt:
+      - language=typescript
+      - paths=source_relative

@@ -72,7 +72,7 @@ This plugin lets you generate all three from the same proto files and choose bas
 - **Configurable timeouts** - Service-level, endpoint-level, and runtime options using `google.protobuf.Duration`
 - **Generated error constants** - Type-safe error codes (no magic strings)
 - **Elegant code generation** - Clean, idiomatic Go using modern patterns
-- **Multi-language ready** - Template system supports Go (implemented), Rust, TypeScript (planned)
+- **Multi-language support** - Template system supports Go and TypeScript (Rust planned)
 - **Standard tooling** - Works with `buf`, `protoc`, and existing protobuf workflows
 - **Service discovery** - Automatic via NATS, no Consul/etcd needed
 - **Load balancing** - Built into NATS queue groups
@@ -97,11 +97,18 @@ go install github.com/toyz/protoc-gen-nats-micro/cmd/protoc-gen-nats-micro@lates
 ### Generate Code
 
 ```bash
-# Using Task
+# Generate Go code (NATS + gRPC + REST + OpenAPI)
 task generate
 
+# Generate TypeScript code (NATS + protobuf)
+task generate:ts
+
+# Generate both Go and TypeScript
+task generate:all
+
 # Or manually with buf
-buf generate
+buf generate --template examples/buf-configs/buf.gen.yaml      # Go
+buf generate --template examples/buf-configs/buf.gen.ts.yaml   # TypeScript
 ```
 
 ### Run Example
@@ -365,6 +372,30 @@ This is useful for:
 - **Monitoring** - Track which subjects to monitor
 - **Debugging** - Verify correct subject configuration
 - **Documentation** - Generate API docs from live services
+
+## TypeScript Support
+
+Full TypeScript support is available with the same feature set as Go. See [TYPESCRIPT.md](TYPESCRIPT.md) for detailed documentation.
+
+**Quick Example:**
+
+```typescript
+import { connect } from 'nats';
+import { ProductServiceNatsClient } from './gen/product/v1/service_nats.pb';
+
+const nc = await connect({ servers: 'nats://localhost:4222' });
+const client = new ProductServiceNatsClient(nc);
+
+const response = await client.getProduct({ id: '123' });
+console.log('Product:', response);
+```
+
+**Generate TypeScript code:**
+
+```bash
+task generate:ts  # TypeScript only
+task generate:all # Go + TypeScript
+```
 
 ## Configuration
 

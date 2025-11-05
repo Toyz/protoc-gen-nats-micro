@@ -1,0 +1,189 @@
+{{- /* Service interface and registration function */ -}}
+{{- if not .Options.SubjectPrefix }}
+// WARNING: Service {{.Service.GoName}} is missing required option (nats.micro.service).subject_prefix
+// The service will not function correctly without a subject prefix.
+
+{{end -}}
+/**
+ * {{.Service.GoName}}Nats is the NATS service interface for {{.Service.GoName}}
+ */
+export interface I{{.Service.GoName}}Nats {
+{{- range .Service.Methods}}
+  {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
+}
+
+/**
+ * Configuration options for service registration
+ */
+export interface {{.Service.GoName}}RegisterOptions {
+  name?: string;
+  version?: string;
+  description?: string;
+  subjectPrefix?: string;
+  timeout?: number; // milliseconds (0 = no timeout)
+  metadata?: Record<string, string>;
+}
+
+/**
+ * {{.Service.GoName}}Service wraps the registered NATS micro service
+ */
+export class {{.Service.GoName}}Service {
+  constructor(
+    private readonly service: Service,
+    private readonly subjectPrefix: string
+  ) {}
+
+  /**
+   * Returns information about all service endpoints
+   * This is useful for debugging, monitoring, and service discovery
+   */
+  endpoints(): {{.Service.GoName}}EndpointInfo[] {
+    return [
+{{- range .Service.Methods}}
+      { name: '{{.GoName}}', subject: `${this.subjectPrefix}.{{ToSnakeCase .GoName}}` },
+{{- end}}
+    ];
+  }
+
+  /**
+   * Stop the service
+   */
+  async stop(): Promise<void> {
+    return this.service.stop();
+  }
+
+  /**
+   * Check if the service is stopped
+   */
+  isStopped(): boolean {
+    return this.service.stopped;
+  }
+
+  /**
+   * Get service info
+   */
+  info(): any {
+    return this.service.info();
+  }
+
+  /**
+   * Get service stats
+   */
+  stats(): any {
+    return this.service.stats();
+  }
+}
+
+/**
+ * Register{{.Service.GoName}}Handlers registers the service with NATS micro handlers
+ * 
+ * Service: {{.Options.Name}} v{{.Options.Version}}
+{{- if .Options.Description}}
+ * Description: {{.Options.Description}}
+{{- end}}
+ * Subject prefix: {{.Options.SubjectPrefix}}
+{{- if .Options.Metadata}}
+ * Metadata: {{range $key, $value := .Options.Metadata}}{{$key}}={{$value}} {{end}}
+{{- end}}
+ * 
+ * @param nc - NATS connection
+ * @param impl - Service implementation
+ * @param options - Registration options
+ * @returns Promise resolving to the registered service
+ */
+export async function register{{.Service.GoName}}Handlers(
+  nc: NatsConnection,
+  impl: I{{.Service.GoName}}Nats,
+  options?: {{.Service.GoName}}RegisterOptions
+): Promise<{{.Service.GoName}}Service> {
+  const config: ServiceConfig = {
+    name: options?.name || '{{.Options.Name}}',
+    version: options?.version || '{{.Options.Version}}',
+    description: options?.description || '{{.Options.Description}}',
+    metadata: {
+{{- range $key, $value := .Options.Metadata}}
+      '{{$key}}': '{{$value}}',
+{{- end}}
+      ...options?.metadata,
+    },
+  };
+
+  const subjectPrefix = options?.subjectPrefix || '{{.Options.SubjectPrefix}}';
+  const timeout = options?.timeout || {{.Options.Timeout.Seconds}}000; // Convert seconds to milliseconds
+
+  // Create service
+  const service = await nc.services.add(config);
+
+  // Create handlers
+  const handlers = new {{.Service.GoName}}Handlers(impl, timeout);
+
+  // Add endpoints
+  const group = subjectPrefix ? service.addGroup(subjectPrefix) : service;
+  
+{{range .Service.Methods -}}
+  await group.addEndpoint('{{ToSnakeCase .GoName}}', {
+    handler: handlers.{{ToLowerFirst .GoName}}.bind(handlers),
+  });
+{{end}}
+
+  return new {{.Service.GoName}}Service(service, subjectPrefix);
+}
+
+/**
+ * Internal handlers class that wraps the service implementation
+ */
+class {{.Service.GoName}}Handlers {
+  constructor(
+    private readonly impl: I{{.Service.GoName}}Nats,
+    private readonly timeout: number
+  ) {}
+
+{{range .Service.Methods -}}
+  async {{ToLowerFirst .GoName}}(err: ServiceError | null, msg: any): Promise<void> {
+    if (err) {
+      throw err;
+    }
+
+    try {
+      // Decode request
+      const request = pb.{{.Input.GoIdent.GoName}}.decode(msg.data);
+
+      // Call implementation with timeout if configured
+      let response: pb.{{.Output.GoIdent.GoName}};
+      if (this.timeout > 0) {
+        response = await Promise.race([
+          this.impl.{{ToLowerFirst .GoName}}(request),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timeout')), this.timeout)
+          ),
+        ]);
+      } else {
+        response = await this.impl.{{ToLowerFirst .GoName}}(request);
+      }
+
+      // Encode and send response
+      const data = pb.{{.Output.GoIdent.GoName}}.encode(response).finish();
+      msg.respond(data);
+    } catch (error) {
+      // Handle errors
+      let code = {{$.Service.GoName}}ErrorCode.INTERNAL;
+      let message = error instanceof Error ? error.message : 'Unknown error';
+      let data: Uint8Array | undefined;
+
+      // Check if error is a {{$.Service.GoName}}Error
+      if (is{{$.Service.GoName}}Error(error)) {
+        code = error.code as any;
+        message = error.message;
+        data = error.data;
+      }
+
+      // Send error response
+      const h = headers();
+      h.set('Status', code);
+      h.set('Description', message);
+      msg.respond(data || new Uint8Array(0), { headers: h });
+    }
+  }
+{{end}}
+}

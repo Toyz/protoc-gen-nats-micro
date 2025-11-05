@@ -30,9 +30,11 @@ func main() {
 			Language: *language,
 		}
 
-		// Check for language in parameters (e.g., --nats-micro_opt=lang=rust)
+		// Check for language in parameters (e.g., --nats-micro_opt=language=typescript)
 		for _, param := range strings.Split(gen.Request.GetParameter(), ",") {
-			if strings.HasPrefix(param, "lang=") {
+			if strings.HasPrefix(param, "language=") {
+				cfg.Language = strings.TrimPrefix(param, "language=")
+			} else if strings.HasPrefix(param, "lang=") {
 				cfg.Language = strings.TrimPrefix(param, "lang=")
 			}
 		}

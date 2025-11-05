@@ -1,0 +1,37 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Standard protobuf Go generation
+  - local: protoc-gen-go
+    out: gen
+    opt:
+      - module=github.com/toyz/protoc-gen-nats-micro/gen
+  
+  # Standard gRPC Go generation (for comparison)
+  - local: protoc-gen-go-grpc
+    out: gen
+    opt:
+      - module=github.com/toyz/protoc-gen-nats-micro/gen
+  
+  # gRPC-Gateway - REST API generation (for comparison)
+  - local: protoc-gen-grpc-gateway
+    out: gen
+    opt:
+      - module=github.com/toyz/protoc-gen-nats-micro/gen
+      - generate_unbound_methods=true
+  
+  # OpenAPI v2 spec generation - per service
+  - local: protoc-gen-openapiv2
+    out: gen
+    opt:
+      - allow_merge=false
+      - output_format=yaml
+      - use_go_templates=true
+  
+  # Our custom NATS micro generation (Go)
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro.exe
+    out: gen
+    opt:
+      - module=github.com/toyz/protoc-gen-nats-micro/gen
+      - language=go
