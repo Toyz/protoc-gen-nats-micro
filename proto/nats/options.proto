@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package nats.micro;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/nats/micro";
+
+// Service-level options for NATS microservices
+message ServiceOptions {
+  // The NATS subject prefix for all endpoints in this service (required)
+  string subject_prefix = 1;
+  
+  // Service name (optional, defaults to snake_case of service name)
+  string name = 2;
+  
+  // Service version (optional, defaults to "1.0.0")
+  string version = 3;
+  
+  // Service description (optional)
+  string description = 4;
+}
+
+extend google.protobuf.ServiceOptions {
+  ServiceOptions service = 50001;
+}

@@ -1,0 +1,119 @@
+{{- /* Service interface and registration function */ -}}
+{{- if not .Options.SubjectPrefix }}
+// WARNING: Service {{.Service.GoName}} is missing required option (nats.micro.service).subject_prefix
+// The service will not function correctly without a subject prefix.
+
+{{end -}}
+// {{.Service.GoName}}Nats is the NATS service interface for {{.Service.GoName}}
+type {{.Service.GoName}}Nats interface {
+{{- range .Service.Methods}}
+	{{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
+{{- end}}
+}
+
+// Register{{.Service.GoName}}Handlers registers the service with NATS micro handlers
+// Service: {{.Options.Name}} v{{.Options.Version}}
+{{- if .Options.Description}}
+// Description: {{.Options.Description}}
+{{- end}}
+// Subject prefix: {{.Options.SubjectPrefix}}
+// Override with WithName(), WithVersion(), WithDescription(), WithSubjectPrefix() options
+func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (micro.Service, error) {
+	cfg := &registerConfig{
+		name:          "{{.Options.Name}}",
+		version:       "{{.Options.Version}}",
+		description:   "{{.Options.Description}}",
+		subjectPrefix: "{{.Options.SubjectPrefix}}",
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	svc, err := micro.AddService(nc, micro.Config{
+		Name:    cfg.name,
+		Version: cfg.version,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add service: %w", err)
+	}
+
+	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{impl: impl}
+
+	var group micro.Group
+	if cfg.subjectPrefix != "" {
+		group = svc.AddGroup(cfg.subjectPrefix)
+	}
+
+{{range .Service.Methods -}}
+	if group != nil {
+		if err := group.AddEndpoint("{{ToSnakeCase .GoName}}", micro.HandlerFunc(handlers.{{.GoName}})); err != nil {
+			return nil, fmt.Errorf("failed to add endpoint {{ToSnakeCase .GoName}}: %w", err)
+		}
+	} else {
+		if err := svc.AddEndpoint("{{ToSnakeCase .GoName}}", micro.HandlerFunc(handlers.{{.GoName}})); err != nil {
+			return nil, fmt.Errorf("failed to add endpoint {{ToSnakeCase .GoName}}: %w", err)
+		}
+	}
+
+{{end -}}
+	return svc, nil
+}
+
+// {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
+type {{ToLowerFirst .Service.GoName}}Handlers struct {
+	impl {{.Service.GoName}}Nats
+}
+
+{{range .Service.Methods -}}
+func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	var msg {{.Input.GoIdent.GoName}}
+	if err := proto.Unmarshal(req.Data(), &msg); err != nil {
+		req.Error("400", fmt.Sprintf("unmarshal: %v", err), nil)
+		return
+	}
+
+	resp, err := h.impl.{{.GoName}}(context.Background(), &msg)
+	if err != nil {
+		req.Error("500", err.Error(), nil)
+		return
+	}
+
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		req.Error("500", fmt.Sprintf("marshal: %v", err), nil)
+		return
+	}
+
+	if err := req.Respond(data); err != nil {
+		// Log error if needed
+		_ = err
+	}
+}
+
+{{end -}}
+
+type registerConfig struct {
+	name          string
+	version       string
+	description   string
+	subjectPrefix string
+}
+
+type RegisterOption func(*registerConfig)
+
+func WithName(name string) RegisterOption {
+	return func(c *registerConfig) { c.name = name }
+}
+
+func WithVersion(version string) RegisterOption {
+	return func(c *registerConfig) { c.version = version }
+}
+
+func WithDescription(desc string) RegisterOption {
+	return func(c *registerConfig) { c.description = desc }
+}
+
+func WithSubjectPrefix(prefix string) RegisterOption {
+	return func(c *registerConfig) { c.subjectPrefix = prefix }
+}
+

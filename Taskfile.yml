@@ -1,0 +1,110 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  PLUGIN_DIR: tools/protoc-gen-nats-micro
+  PLUGIN_BIN: "{{.PLUGIN_DIR}}/protoc-gen-nats-micro{{exeExt}}"
+
+tasks:
+  default:
+    desc: Generate all protobuf code
+    cmds:
+      - task: generate
+
+  # Phase 1: Generate extension types (nats/options.proto)
+  generate:extensions:
+    desc: Generate protobuf extensions (phase 1)
+    cmds:
+      - buf generate --template buf.gen.extensions.yaml --path proto/nats/options.proto
+    sources:
+      - proto/nats/options.proto
+      - buf.gen.extensions.yaml
+    generates:
+      - gen/nats/micro/options.pb.go
+
+  # Phase 2: Build the protoc plugin
+  build:plugin:
+    desc: Build protoc-gen-nats-micro plugin
+    deps:
+      - generate:extensions
+    cmds:
+      - go build -o {{.PLUGIN_BIN}} ./{{.PLUGIN_DIR}}
+    sources:
+      - "{{.PLUGIN_DIR}}/**/*.go"
+      - "{{.PLUGIN_DIR}}/generator/templates/**/*.tmpl"
+      - gen/nats/micro/options.pb.go
+    generates:
+      - "{{.PLUGIN_BIN}}"
+
+  # Phase 3: Generate all service code
+  generate:
+    desc: Generate all protobuf code (gRPC + NATS + OpenAPI)
+    deps:
+      - build:plugin
+    cmds:
+      - buf generate
+      - go run ./examples/openapi-merge -output gen/api.swagger.json
+    sources:
+      - proto/**/*.proto
+      - buf.gen.yaml
+      - "{{.PLUGIN_BIN}}"
+    generates:
+      - gen/**/*.pb.go
+      - gen/**/*_grpc.pb.go
+      - gen/**/*_nats.pb.go
+      - gen/**/*.swagger.yaml
+      - gen/api.swagger.json
+
+  # Clean generated files
+  clean:
+    desc: Remove all generated files
+    cmds:
+      - rm -rf gen/
+      - rm -f {{.PLUGIN_BIN}}
+
+  # Build all examples
+  build:
+    desc: Build all example applications
+    deps:
+      - generate
+    cmds:
+      - go build ./examples/...
+
+  # Run tests
+  test:
+    desc: Run all tests
+    deps:
+      - generate
+    cmds:
+      - go test ./...
+
+  # Start NATS server
+  nats:
+    desc: Start NATS server in Docker
+    cmds:
+      - docker run --rm -p 4222:4222 --name nats nats
+
+  # Run complex server example
+  run:server:
+    desc: Run complex-server example
+    deps:
+      - generate
+    cmds:
+      - go run ./examples/complex-server
+
+  # Run complex client example
+  run:client:
+    desc: Run complex-client example
+    deps:
+      - generate
+    cmds:
+      - go run ./examples/complex-client
+
+  # Run REST gateway
+  run:gateway:
+    desc: Run REST API gateway (gRPC-Gateway)
+    deps:
+      - generate
+    cmds:
+      - go run ./examples/rest-gateway

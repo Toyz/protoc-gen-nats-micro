@@ -1,0 +1,9 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Only generate the base protobuf for extensions
+  - local: protoc-gen-go
+    out: gen
+    opt:
+      - module=github.com/toyz/protoc-gen-nats-micro/gen

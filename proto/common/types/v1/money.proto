@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package common.types.v1;
+
+option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/common/types/v1";
+
+// Money represents a monetary amount
+message Money {
+  string currency_code = 1; // USD, EUR, etc.
+  int64 units = 2;          // Whole units (dollars)
+  int32 nanos = 3;          // Fractional units (cents)
+}

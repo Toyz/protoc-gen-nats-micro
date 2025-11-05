@@ -1,0 +1,50 @@
+{{- /* Client implementation */ -}}
+// {{.Service.GoName}}NatsClient is the NATS client for {{.Service.GoName}}
+type {{.Service.GoName}}NatsClient struct {
+  nc            *nats.Conn
+  subjectPrefix string
+}
+
+// New{{.Service.GoName}}NatsClient creates a new NATS client
+func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) *{{.Service.GoName}}NatsClient {
+  c := &{{.Service.GoName}}NatsClient{
+    nc:            nc,
+    subjectPrefix: "{{.Options.SubjectPrefix}}",
+  }
+  for _, opt := range opts {
+    opt(c)
+  }
+  return c
+}
+
+{{range .Service.Methods -}}
+func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
+  subject := "{{ToSnakeCase .GoName}}"
+  if c.subjectPrefix != "" {
+    subject = c.subjectPrefix + "." + subject
+  }
+
+  data, err := proto.Marshal(req)
+  if err != nil {
+    return nil, fmt.Errorf("marshal request: %w", err)
+  }
+
+  msg, err := c.nc.RequestWithContext(ctx, subject, data)
+  if err != nil {
+    return nil, fmt.Errorf("nats request: %w", err)
+  }
+
+  var resp {{.Output.GoIdent.GoName}}
+  if err := proto.Unmarshal(msg.Data, &resp); err != nil {
+    return nil, fmt.Errorf("unmarshal response: %w", err)
+  }
+
+  return &resp, nil
+}
+
+{{end -}}
+type NatsClientOption func(*{{.Service.GoName}}NatsClient)
+
+func WithNatsClientSubjectPrefix(prefix string) NatsClientOption {
+  return func(c *{{.Service.GoName}}NatsClient) { c.subjectPrefix = prefix }
+}

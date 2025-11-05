@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package common.types.v1;
+
+option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/common/types/v1";
+
+// Status represents the lifecycle state of an entity
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_ACTIVE = 1;
+  STATUS_INACTIVE = 2;
+  STATUS_PENDING = 3;
+  STATUS_DELETED = 4;
+}

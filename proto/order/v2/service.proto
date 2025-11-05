@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package order.v2;
+
+import "common/types/v1/money.proto";
+import "common/location/v1/address.proto";
+import "common/types/v1/status.proto";
+import "common/metadata/v1/metadata.proto";
+import "nats/options.proto";
+import "google/api/annotations.proto";
+
+option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/order/v2";
+
+// Order service with metadata (v2)
+service OrderService {
+  option (nats.micro.service) = {
+    subject_prefix: "api.v2"
+    name: "order_service"
+    version: "2.0.0"
+    description: "Order management service v2 with enhanced features"
+  };
+
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
+    option (google.api.http) = {
+      post: "/v2/orders"
+      body: "*"
+    };
+  }
+  
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
+    option (google.api.http) = {
+      get: "/v2/orders/{id}"
+    };
+  }
+  
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse) {
+    option (google.api.http) = {
+      get: "/v2/orders"
+    };
+  }
+  
+  rpc UpdateOrderStatus(UpdateOrderStatusRequest) returns (UpdateOrderStatusResponse) {
+    option (google.api.http) = {
+      patch: "/v2/orders/{id}/status"
+      body: "*"
+    };
+  }
+}
+
+message OrderItem {
+  string product_id = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  common.types.v1.Money unit_price = 4;
+  common.types.v1.Money total_price = 5;
+}
+
+message Order {
+  string id = 1;
+  string customer_id = 2;
+  string customer_name = 3;
+  repeated OrderItem items = 4;
+  common.types.v1.Money subtotal = 5;
+  common.types.v1.Money tax = 6;
+  common.types.v1.Money total = 7;
+  common.location.v1.Address shipping_address = 8;
+  common.types.v1.Status status = 9;
+  common.metadata.v1.Metadata metadata = 10;
+}
+
+message CreateOrderRequest {
+  string customer_id = 1;
+  string customer_name = 2;
+  repeated OrderItem items = 3;
+  common.location.v1.Address shipping_address = 4;
+}
+
+message CreateOrderResponse {
+  Order order = 1;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message ListOrdersRequest {
+  string customer_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  common.types.v1.Status status_filter = 4;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message UpdateOrderStatusRequest {
+  string id = 1;
+  common.types.v1.Status status = 2;
+  string reason = 3;
+}
+
+message UpdateOrderStatusResponse {
+  Order order = 1;
+}
