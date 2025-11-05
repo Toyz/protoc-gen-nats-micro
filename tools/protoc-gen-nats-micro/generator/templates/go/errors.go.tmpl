@@ -1,0 +1,109 @@
+{{- /* Error types and helpers */ -}}
+// {{.Service.GoName}}Error represents a structured error from {{.Service.GoName}}
+type {{.Service.GoName}}Error struct {
+	Code    string // Error code (e.g., "INVALID_ARGUMENT", "NOT_FOUND", "INTERNAL")
+	Message string // Human-readable error message
+	Method  string // The method that failed
+}
+
+func (e *{{.Service.GoName}}Error) Error() string {
+	return fmt.Sprintf("[%s] %s: %s", e.Code, e.Method, e.Message)
+}
+
+// Error code constants for {{.Service.GoName}}
+const (
+	{{.Service.GoName}}ErrCodeInvalidArgument = "INVALID_ARGUMENT"
+	{{.Service.GoName}}ErrCodeNotFound        = "NOT_FOUND"
+	{{.Service.GoName}}ErrCodeAlreadyExists   = "ALREADY_EXISTS"
+	{{.Service.GoName}}ErrCodePermissionDenied = "PERMISSION_DENIED"
+	{{.Service.GoName}}ErrCodeUnauthenticated = "UNAUTHENTICATED"
+	{{.Service.GoName}}ErrCodeInternal        = "INTERNAL"
+	{{.Service.GoName}}ErrCodeUnavailable     = "UNAVAILABLE"
+)
+
+// Is{{.Service.GoName}}InvalidArgument checks if the error is an invalid argument error
+func Is{{.Service.GoName}}InvalidArgument(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeInvalidArgument
+}
+
+// Is{{.Service.GoName}}NotFound checks if the error is a not found error
+func Is{{.Service.GoName}}NotFound(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeNotFound
+}
+
+// Is{{.Service.GoName}}AlreadyExists checks if the error is an already exists error
+func Is{{.Service.GoName}}AlreadyExists(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeAlreadyExists
+}
+
+// Is{{.Service.GoName}}PermissionDenied checks if the error is a permission denied error
+func Is{{.Service.GoName}}PermissionDenied(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodePermissionDenied
+}
+
+// Is{{.Service.GoName}}Unauthenticated checks if the error is an unauthenticated error
+func Is{{.Service.GoName}}Unauthenticated(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeUnauthenticated
+}
+
+// Is{{.Service.GoName}}Internal checks if the error is an internal error
+func Is{{.Service.GoName}}Internal(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeInternal
+}
+
+// Is{{.Service.GoName}}Unavailable checks if the error is an unavailable error
+func Is{{.Service.GoName}}Unavailable(err error) bool {
+	var svcErr *{{.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{.Service.GoName}}ErrCodeUnavailable
+}
+
+// Get{{.Service.GoName}}ErrorCode extracts the error code from an error, returns empty string if not a {{.Service.GoName}}Error
+func Get{{.Service.GoName}}ErrorCode(err error) string {
+	var svcErr *{{.Service.GoName}}Error
+	if errors.As(err, &svcErr) {
+		return svcErr.Code
+	}
+	return ""
+}
+
+// New{{.Service.GoName}}InvalidArgumentError creates a new invalid argument error
+func New{{.Service.GoName}}InvalidArgumentError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeInvalidArgument, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}NotFoundError creates a new not found error
+func New{{.Service.GoName}}NotFoundError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeNotFound, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}AlreadyExistsError creates a new already exists error
+func New{{.Service.GoName}}AlreadyExistsError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeAlreadyExists, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}PermissionDeniedError creates a new permission denied error
+func New{{.Service.GoName}}PermissionDeniedError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodePermissionDenied, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}UnauthenticatedError creates a new unauthenticated error
+func New{{.Service.GoName}}UnauthenticatedError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeUnauthenticated, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}InternalError creates a new internal error
+func New{{.Service.GoName}}InternalError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeInternal, Method: method, Message: message}
+}
+
+// New{{.Service.GoName}}UnavailableError creates a new unavailable error
+func New{{.Service.GoName}}UnavailableError(method, message string) error {
+	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeUnavailable, Method: method, Message: message}
+}
+

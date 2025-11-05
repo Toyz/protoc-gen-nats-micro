@@ -19,6 +19,9 @@ message ServiceOptions {
   
   // Service description (optional)
   string description = 4;
+  
+  // Service metadata (optional, key-value pairs for service discovery)
+  map<string, string> metadata = 5;
 }
 
 extend google.protobuf.ServiceOptions {

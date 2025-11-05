@@ -13,6 +13,7 @@ type ServiceOptions struct {
 	Name          string
 	Version       string
 	Description   string
+	Metadata      map[string]string
 }
 
 // GetServiceOptions extracts service options from proto service definition
@@ -23,6 +24,7 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 		Version:       "1.0.0",
 		Description:   "",
 		SubjectPrefix: "",
+		Metadata:      make(map[string]string),
 	}
 
 	// Try to read the nats.micro.service extension
@@ -40,6 +42,9 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 			}
 			if svcOpts.Description != "" {
 				opts.Description = svcOpts.Description
+			}
+			if len(svcOpts.Metadata) > 0 {
+				opts.Metadata = svcOpts.Metadata
 			}
 		}
 	}

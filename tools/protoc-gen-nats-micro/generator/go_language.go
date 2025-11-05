@@ -35,6 +35,14 @@ func (l *GoLanguage) Generate(g *protogen.GeneratedFile, service *protogen.Servi
 		Options: opts,
 	}
 
+	// Generate error types for this service
+	var errorsBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&errorsBuf, "errors.go.tmpl", data); err != nil {
+		return fmt.Errorf("execute errors template: %w", err)
+	}
+	g.P(errorsBuf.String())
+	g.P()
+
 	// Generate service
 	var serviceBuf bytes.Buffer
 	if err := l.templates.ExecuteTemplate(&serviceBuf, "service.go.tmpl", data); err != nil {

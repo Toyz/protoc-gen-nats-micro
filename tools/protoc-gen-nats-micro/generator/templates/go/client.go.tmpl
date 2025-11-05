@@ -34,6 +34,17 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
     return nil, fmt.Errorf("nats request: %w", err)
   }
 
+  // Check if this is an error response from the service
+  if msg.Header.Get("Status") != "" {
+    code := msg.Header.Get("Status")
+    description := msg.Header.Get("Description")
+    return nil, &{{$.Service.GoName}}Error{
+      Code:    code,
+      Method:  "{{.GoName}}",
+      Message: description,
+    }
+  }
+
   var resp {{.Output.GoIdent.GoName}}
   if err := proto.Unmarshal(msg.Data, &resp); err != nil {
     return nil, fmt.Errorf("unmarshal response: %w", err)

@@ -402,9 +402,53 @@ See `examples/complex-server` for a complete example with:
 See `examples/complex-client` for examples of:
 
 - Creating resources across services
-- Handling errors
+- Handling errors with type-safe error checking
 - Working with complex types
 - API versioning
+
+#### Error Handling
+
+The generated code includes structured error types with helper functions for type-safe error checking:
+
+```go
+client := productv1.NewProductServiceNatsClient(nc)
+product, err := client.GetProduct(ctx, &productv1.GetProductRequest{Id: "123"})
+if err != nil {
+    // Check error type using generated helpers
+    if productv1.IsNotFound(err) {
+        log.Println("Product not found")
+        return
+    }
+    if productv1.IsInvalidArgument(err) {
+        log.Println("Invalid request:", err)
+        return
+    }
+    // Handle other errors
+    log.Fatal("Unexpected error:", err)
+}
+```
+
+Service implementations can return semantic errors:
+
+```go
+func (s *productService) GetProduct(ctx context.Context, req *productv1.GetProductRequest) (*productv1.GetProductResponse, error) {
+    product, exists := s.products[req.Id]
+    if !exists {
+        // Return structured error that client can check
+        return nil, productv1.NewNotFoundError("GetProduct", fmt.Sprintf("product %s not found", req.Id))
+    }
+    return &productv1.GetProductResponse{Product: product}, nil
+}
+```
+
+Available error codes:
+- `INVALID_ARGUMENT` - Bad request data
+- `NOT_FOUND` - Resource not found
+- `ALREADY_EXISTS` - Resource already exists
+- `PERMISSION_DENIED` - Permission denied
+- `UNAUTHENTICATED` - Authentication required
+- `INTERNAL` - Server error
+- `UNAVAILABLE` - Service unavailable
 
 ### REST Gateway
 

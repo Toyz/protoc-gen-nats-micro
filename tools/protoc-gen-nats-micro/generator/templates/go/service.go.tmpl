@@ -17,21 +17,35 @@ type {{.Service.GoName}}Nats interface {
 // Description: {{.Options.Description}}
 {{- end}}
 // Subject prefix: {{.Options.SubjectPrefix}}
-// Override with WithName(), WithVersion(), WithDescription(), WithSubjectPrefix() options
+{{- if .Options.Metadata}}
+// Metadata: {{range $key, $value := .Options.Metadata}}{{$key}}={{$value}} {{end}}
+{{- end}}
+// Override with WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithMetadata() options
+// Optional handlers: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
 func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (micro.Service, error) {
 	cfg := &registerConfig{
 		name:          "{{.Options.Name}}",
 		version:       "{{.Options.Version}}",
 		description:   "{{.Options.Description}}",
 		subjectPrefix: "{{.Options.SubjectPrefix}}",
+		metadata:      map[string]string{
+{{- range $key, $value := .Options.Metadata}}
+			"{{$key}}": "{{$value}}",
+{{- end}}
+		},
 	}
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
 	svc, err := micro.AddService(nc, micro.Config{
-		Name:    cfg.name,
-		Version: cfg.version,
+		Name:         cfg.name,
+		Version:      cfg.version,
+		Metadata:     cfg.metadata,
+		Description:  cfg.description,
+		StatsHandler: cfg.statsHandler,
+		DoneHandler:  cfg.doneHandler,
+		ErrorHandler: cfg.errorHandler,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to add service: %w", err)
@@ -39,23 +53,30 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 
 	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{impl: impl}
 
-	var group micro.Group
-	if cfg.subjectPrefix != "" {
-		group = svc.AddGroup(cfg.subjectPrefix)
-	}
-
+	// Map of endpoint names to their handlers
+	endpoints := map[string]micro.Handler{
 {{range .Service.Methods -}}
-	if group != nil {
-		if err := group.AddEndpoint("{{ToSnakeCase .GoName}}", micro.HandlerFunc(handlers.{{.GoName}})); err != nil {
-			return nil, fmt.Errorf("failed to add endpoint {{ToSnakeCase .GoName}}: %w", err)
-		}
-	} else {
-		if err := svc.AddEndpoint("{{ToSnakeCase .GoName}}", micro.HandlerFunc(handlers.{{.GoName}})); err != nil {
-			return nil, fmt.Errorf("failed to add endpoint {{ToSnakeCase .GoName}}: %w", err)
+		"{{ToSnakeCase .GoName}}": micro.HandlerFunc(handlers.{{.GoName}}),
+{{end -}}
+	}
+
+	// Use interface to handle both Service and Group
+	type endpointAdder interface {
+		AddEndpoint(string, micro.Handler, ...micro.EndpointOpt) error
+	}
+
+	var adder endpointAdder = svc
+	if cfg.subjectPrefix != "" {
+		adder = svc.AddGroup(cfg.subjectPrefix)
+	}
+
+	// Register all endpoints
+	for name, handler := range endpoints {
+		if err := adder.AddEndpoint(name, handler); err != nil {
+			return nil, fmt.Errorf("failed to add endpoint %s: %w", name, err)
 		}
 	}
 
-{{end -}}
 	return svc, nil
 }
 
@@ -68,35 +89,40 @@ type {{ToLowerFirst .Service.GoName}}Handlers struct {
 func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
 	var msg {{.Input.GoIdent.GoName}}
 	if err := proto.Unmarshal(req.Data(), &msg); err != nil {
-		req.Error("400", fmt.Sprintf("unmarshal: %v", err), nil)
+		req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
 		return
 	}
 
 	resp, err := h.impl.{{.GoName}}(context.Background(), &msg)
 	if err != nil {
-		req.Error("500", err.Error(), nil)
+		// Preserve the original error message for debugging
+		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("{{.GoName}} failed: %v", err), nil)
 		return
 	}
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		req.Error("500", fmt.Sprintf("marshal: %v", err), nil)
+		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode response: %v", err), nil)
 		return
 	}
 
 	if err := req.Respond(data); err != nil {
-		// Log error if needed
-		_ = err
+		// Log response send failure (client may have disconnected)
+		fmt.Fprintf(os.Stderr, "failed to send response for {{.GoName}}: %v\n", err)
 	}
 }
+{{end}}
 
-{{end -}}
 
 type registerConfig struct {
 	name          string
 	version       string
 	description   string
 	subjectPrefix string
+	metadata      map[string]string
+	statsHandler  micro.StatsHandler
+	doneHandler   micro.DoneHandler
+	errorHandler  micro.ErrHandler
 }
 
 type RegisterOption func(*registerConfig)
@@ -115,5 +141,21 @@ func WithDescription(desc string) RegisterOption {
 
 func WithSubjectPrefix(prefix string) RegisterOption {
 	return func(c *registerConfig) { c.subjectPrefix = prefix }
+}
+
+func WithMetadata(metadata map[string]string) RegisterOption {
+	return func(c *registerConfig) { c.metadata = metadata }
+}
+
+func WithStatsHandler(handler micro.StatsHandler) RegisterOption {
+	return func(c *registerConfig) { c.statsHandler = handler }
+}
+
+func WithDoneHandler(handler micro.DoneHandler) RegisterOption {
+	return func(c *registerConfig) { c.doneHandler = handler }
+}
+
+func WithErrorHandler(handler micro.ErrHandler) RegisterOption {
+	return func(c *registerConfig) { c.errorHandler = handler }
 }
 

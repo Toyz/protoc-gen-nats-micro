@@ -18,6 +18,18 @@ service ProductService {
     name: "product_service"
     version: "1.0.0"
     description: "Product catalog management service"
+    metadata: {
+      key: "team"
+      value: "catalog"
+    }
+    metadata: {
+      key: "owner"
+      value: "platform-team"
+    }
+    metadata: {
+      key: "environment"
+      value: "production"
+    }
   };
   
   rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {
