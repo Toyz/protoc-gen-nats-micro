@@ -327,6 +327,45 @@ func NewOrderServiceNatsClient(nc *nats.Conn, opts ...NatsClientOption) *OrderSe
 func (c *OrderServiceNatsClient) CreateOrder(ctx context.Context, req *CreateOrderRequest) (*CreateOrderResponse, error)
 ```
 
+### Service Introspection
+
+Both server and client code provide introspection to discover available endpoints:
+
+```go
+// Register service and get wrapped service with Endpoints() method
+svc, err := productv1.RegisterProductServiceHandlers(nc, impl)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get all endpoints from the service
+for _, ep := range svc.Endpoints() {
+    fmt.Printf("%s -> %s\n", ep.Name, ep.Subject)
+    // Output:
+    // CreateProduct -> api.v1.create_product
+    // GetProduct -> api.v1.get_product
+    // UpdateProduct -> api.v1.update_product
+    // DeleteProduct -> api.v1.delete_product
+    // SearchProducts -> api.v1.search_products
+}
+
+// Client also has Endpoints() method
+client := productv1.NewProductServiceNatsClient(nc)
+endpoints := client.Endpoints()
+// Returns same info with client's configured subject prefix
+
+// The service wrapper embeds micro.Service, so you can call all micro.Service methods:
+svc.Stop()
+svc.Info()
+svc.Stats()
+```
+
+This is useful for:
+- **Service discovery** - List all available operations
+- **Monitoring** - Track which subjects to monitor
+- **Debugging** - Verify correct subject configuration
+- **Documentation** - Generate API docs from live services
+
 ## Configuration
 
 Service configuration is defined in proto files using custom options:

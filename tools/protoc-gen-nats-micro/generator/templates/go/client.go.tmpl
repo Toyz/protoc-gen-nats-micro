@@ -57,6 +57,16 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 }
 
 {{end -}}
+// Endpoints returns information about all service endpoints this client can call.
+// This is useful for debugging, monitoring, and introspection.
+func (c *{{.Service.GoName}}NatsClient) Endpoints() []{{.Service.GoName}}EndpointInfo {
+  return []{{.Service.GoName}}EndpointInfo{
+{{- range .Service.Methods}}
+    {Name: "{{.GoName}}", Subject: c.subjectPrefix + ".{{ToSnakeCase .GoName}}"},
+{{- end}}
+  }
+}
+
 // NatsClientOption configures the {{.Service.GoName}}NatsClient
 type NatsClientOption func(*{{.Service.GoName}}NatsClient)
 

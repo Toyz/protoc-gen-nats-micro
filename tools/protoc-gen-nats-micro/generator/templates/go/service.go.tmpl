@@ -11,6 +11,28 @@ type {{.Service.GoName}}Nats interface {
 {{- end}}
 }
 
+// {{.Service.GoName}}EndpointInfo describes a service endpoint
+type {{.Service.GoName}}EndpointInfo struct {
+	Name    string `json:"name"`    // Method name (e.g., "CreateProduct")
+	Subject string `json:"subject"` // NATS subject (e.g., "api.v1.create_product")
+}
+
+// {{.Service.GoName}}Service wraps a NATS micro.Service with additional service-specific methods
+type {{.Service.GoName}}Service struct {
+	micro.Service
+	subjectPrefix string
+}
+
+// Endpoints returns information about all service endpoints
+// This is useful for debugging, monitoring, and service discovery
+func (s *{{.Service.GoName}}Service) Endpoints() []{{.Service.GoName}}EndpointInfo {
+	return []{{.Service.GoName}}EndpointInfo{
+{{- range .Service.Methods}}
+		{Name: "{{.GoName}}", Subject: s.subjectPrefix + ".{{ToSnakeCase .GoName}}"},
+{{- end}}
+	}
+}
+
 // Register{{.Service.GoName}}Handlers registers the service with NATS micro handlers
 // Service: {{.Options.Name}} v{{.Options.Version}}
 {{- if .Options.Description}}
@@ -23,7 +45,7 @@ type {{.Service.GoName}}Nats interface {
 // Configuration options: WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithTimeout()
 // Metadata options: WithMetadata() (replace), WithAdditionalMetadata() (merge)
 // Handler options: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
-func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (micro.Service, error) {
+func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (*{{.Service.GoName}}Service, error) {
 	cfg := &registerConfig{
 		name:          "{{.Options.Name}}",
 		version:       "{{.Options.Version}}",
@@ -82,7 +104,10 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		}
 	}
 
-	return svc, nil
+	return &{{.Service.GoName}}Service{
+		Service:       svc,
+		subjectPrefix: cfg.subjectPrefix,
+	}, nil
 }
 
 // {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
