@@ -20,8 +20,9 @@ type {{.Service.GoName}}Nats interface {
 {{- if .Options.Metadata}}
 // Metadata: {{range $key, $value := .Options.Metadata}}{{$key}}={{$value}} {{end}}
 {{- end}}
-// Override with WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithMetadata() options
-// Optional handlers: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
+// Configuration options: WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithTimeout()
+// Metadata options: WithMetadata() (replace), WithAdditionalMetadata() (merge)
+// Handler options: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
 func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) (micro.Service, error) {
 	cfg := &registerConfig{
 		name:          "{{.Options.Name}}",

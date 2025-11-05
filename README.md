@@ -393,6 +393,52 @@ orderv1.RegisterOrderServiceHandlers(nc, svc,
 )
 ```
 
+### Metadata Management
+
+Service metadata can be defined in proto and managed at runtime:
+
+**Proto definition** (embedded at code generation):
+```protobuf
+service ProductService {
+  option (nats.micro.service) = {
+    subject_prefix: "api.v1"
+    metadata: {
+      key: "environment"
+      value: "production"
+    }
+    metadata: {
+      key: "team"
+      value: "platform"
+    }
+  };
+}
+```
+
+**Runtime options** (two approaches):
+
+1. **Replace all metadata** - Completely overrides proto-defined metadata:
+   ```go
+   productv1.RegisterProductServiceHandlers(nc, svc,
+       productv1.WithMetadata(map[string]string{
+           "custom_key": "custom_value",
+           // Proto metadata is discarded
+       }),
+   )
+   ```
+
+2. **Merge with proto metadata** (recommended) - Adds or updates entries:
+   ```go
+   productv1.RegisterProductServiceHandlers(nc, svc,
+       productv1.WithAdditionalMetadata(map[string]string{
+           "instance_id": uuid.New().String(),
+           "hostname":    "server-1",
+           // Proto metadata is preserved and extended
+       }),
+   )
+   ```
+
+Use `WithAdditionalMetadata()` to add runtime context (instance IDs, hostnames, regions) while keeping compile-time metadata (team, environment, version).
+
 ## API Versioning
 
 Run multiple service versions simultaneously using subject prefix isolation:
