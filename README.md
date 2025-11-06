@@ -71,6 +71,8 @@ This plugin lets you generate all three from the same proto files and choose bas
 - **Context propagation** - Proper context handling with timeout support
 - **Configurable timeouts** - Service-level, endpoint-level, and runtime options using `google.protobuf.Duration`
 - **Generated error constants** - Type-safe error codes (no magic strings)
+- **Package-level shared types** - ONE shared file per package eliminates duplication across services
+- **Skip support** - Skip generation for specific services or endpoints using `skip: true`
 - **Elegant code generation** - Clean, idiomatic Go using modern patterns
 - **Multi-language support** - Template system supports Go and TypeScript (Rust planned)
 - **Standard tooling** - Works with `buf`, `protoc`, and existing protobuf workflows
@@ -303,7 +305,8 @@ From a single `.proto` file, **this plugin** generates:
 ```
 gen/order/v1/
 ├── service.pb.go           # Standard protobuf messages (protoc-gen-go)
-└── service_nats.pb.go      # NATS service and client (protoc-gen-nats-micro)
+├── service_nats.pb.go      # NATS service and client (protoc-gen-nats-micro)
+└── shared_nats.pb.go       # Shared types per package (protoc-gen-nats-micro)
 ```
 
 **This example project** also uses additional plugins for demonstration:
@@ -312,6 +315,27 @@ gen/order/v1/
 - `protoc-gen-openapiv2` → OpenAPI specs (`service.swagger.yaml`)
 
 These are **optional** - you only need `protoc-gen-go` and `protoc-gen-nats-micro` for NATS microservices.
+
+### Package-Level Shared File
+
+When multiple proto files or services exist in the same package, the plugin generates **one** `shared_nats.pb.go` file containing:
+
+- **Error constants**: `ErrCodeInvalidArgument`, `ErrCodeNotFound`, `ErrCodeInternal`, etc.
+- **RegisterOption**: Configuration functions for service registration (`WithTimeout`, `WithName`, etc.)
+- **NatsClientOption**: Client configuration interface (`WithNatsClientSubjectPrefix`)
+
+This eliminates code duplication across services in the same package. For example, `order/v1/` with multiple services:
+
+```
+gen/order/v1/
+├── service.pb.go              # Messages from service.proto
+├── service_nats.pb.go         # OrderService, OrderTrackingService
+├── fulfillment.pb.go          # Messages from fulfillment.proto
+├── fulfillment_nats.pb.go     # OrderFulfillmentService
+└── shared_nats.pb.go          # ONE shared file for all services ✨
+```
+
+All three services (`OrderService`, `OrderTrackingService`, `OrderFulfillmentService`) reference the same shared types.
 
 ### NATS Service Interface
 
@@ -512,6 +536,47 @@ service ProductService {
    ```
 
 Use `WithAdditionalMetadata()` to add runtime context (instance IDs, hostnames, regions) while keeping compile-time metadata (team, environment, version).
+
+### Skip Support
+
+You can exclude services or specific endpoints from code generation:
+
+**Skip entire service:**
+```protobuf
+service AdminService {
+  option (nats.micro.service) = {
+    skip: true  // This service won't be generated
+    subject_prefix: "admin"
+    name: "admin_service"
+  };
+  
+  rpc DeleteAllUsers(...) returns (...) {}
+}
+```
+
+**Skip specific endpoint:**
+```protobuf
+service ProductService {
+  option (nats.micro.service) = {
+    subject_prefix: "api.v1"
+    name: "product_service"
+  };
+  
+  rpc GetProduct(...) returns (...) {}  // Generated
+  
+  rpc AdminReset(...) returns (...) {
+    option (nats.micro.endpoint) = {
+      skip: true  // This method won't be in generated code
+    };
+  }
+}
+```
+
+This is useful for:
+- **Internal-only methods** - Methods that shouldn't be exposed via NATS
+- **Development helpers** - Debug endpoints excluded from production builds
+- **Deprecated APIs** - Gradually phase out methods without breaking existing proto files
+- **Testing doubles** - Skip real implementations in test environments
 
 ## API Versioning
 
