@@ -39,10 +39,68 @@ func main() {
 			}
 		}
 
+		// Track which packages have had shared files generated
+		generatedShared := make(map[string]bool)
+
+		// Get language generator
+		lang, err := generator.GetLanguage(cfg.Language)
+		if err != nil {
+			return fmt.Errorf("get language: %w", err)
+		}
+
 		for _, f := range gen.Files {
 			if !f.Generate {
 				continue
 			}
+			
+			// Determine package key for shared file tracking
+			// For Go: use the import path (e.g., "github.com/example/gen/order/v1")
+			// For TypeScript: use the directory path (e.g., "gen/order/v1")
+			pkgKey := string(f.GoImportPath)
+			pkgDir := f.GeneratedFilenamePrefix
+			
+			if cfg.Language == "typescript" || cfg.Language == "ts" {
+				// For TypeScript, extract directory from the filename prefix
+				lastSlash := strings.LastIndex(pkgDir, "/")
+				if lastSlash > 0 {
+					pkgKey = pkgDir[:lastSlash]
+				} else {
+					pkgKey = "."
+				}
+			} else {
+				// For Go, also extract the directory for the shared filename
+				lastSlash := strings.LastIndex(pkgDir, "/")
+				if lastSlash > 0 {
+					pkgDir = pkgDir[:lastSlash]
+				}
+			}
+			
+			// Generate shared file once per package
+			if !generatedShared[pkgKey] {
+				generatedShared[pkgKey] = true
+				
+				// For non-Go languages, don't use Go import path
+				var importPath protogen.GoImportPath
+				if cfg.Language == "go" || cfg.Language == "golang" {
+					importPath = f.GoImportPath
+				}
+				
+				// Use the package directory + "/shared" for the filename
+				sharedFilename := pkgDir + "/shared" + lang.FileExtension()
+				sharedFile := gen.NewGeneratedFile(sharedFilename, importPath)
+				
+				// Generate shared content
+				if goLang, ok := lang.(*generator.GoLanguage); ok {
+					if err := goLang.GenerateShared(sharedFile, f); err != nil {
+						return fmt.Errorf("generate shared: %w", err)
+					}
+				} else if tsLang, ok := lang.(*generator.TypeScriptLanguage); ok {
+					if err := tsLang.GenerateShared(sharedFile, f); err != nil {
+						return fmt.Errorf("generate shared: %w", err)
+					}
+				}
+			}
+			
 			if err := generator.GenerateFile(gen, f, cfg); err != nil {
 				return fmt.Errorf("generate file %s: %w", f.Desc.Path(), err)
 			}

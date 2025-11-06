@@ -20,12 +20,15 @@ type {{.Service.GoName}}NatsClient struct {
 // New{{.Service.GoName}}NatsClient creates a new NATS client for {{.Service.GoName}}.
 // The client sends requests over NATS using protobuf serialization.
 func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {{.Service.GoName}}NatsClientInterface {
-  c := &{{.Service.GoName}}NatsClient{
-    nc:            nc,
+  cfg := &natsClientConfig{
     subjectPrefix: "{{.Options.SubjectPrefix}}",
   }
   for _, opt := range opts {
-    opt(c)
+    opt.applyNatsClientOption(cfg)
+  }
+  c := &{{.Service.GoName}}NatsClient{
+    nc:            nc,
+    subjectPrefix: cfg.subjectPrefix,
   }
   return c
 }
@@ -82,11 +85,3 @@ func (c *{{.Service.GoName}}NatsClient) Endpoints() []{{.Service.GoName}}Endpoin
   }
 }
 
-// NatsClientOption configures the {{.Service.GoName}}NatsClient
-type NatsClientOption func(*{{.Service.GoName}}NatsClient)
-
-// WithNatsClientSubjectPrefix overrides the subject prefix for the client.
-// By default, the prefix from the proto definition is used.
-func WithNatsClientSubjectPrefix(prefix string) NatsClientOption {
-  return func(c *{{.Service.GoName}}NatsClient) { c.subjectPrefix = prefix }
-}

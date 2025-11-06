@@ -20,6 +20,9 @@ type Language interface {
 	// FileExtension returns the file extension (e.g., ".go", ".rs")
 	FileExtension() string
 
+	// GenerateShared generates shared code once per proto file (e.g., RegisterOption types)
+	GenerateShared(g *protogen.GeneratedFile, file *protogen.File) error
+
 	// Generate generates code for the given service
 	Generate(g *protogen.GeneratedFile, service *protogen.Service, opts ServiceOptions) error
 }

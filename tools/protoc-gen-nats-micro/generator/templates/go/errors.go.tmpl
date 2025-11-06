@@ -25,15 +25,15 @@ func (e *{{.Service.GoName}}Error) NatsErrorData() []byte {
 	return nil
 }
 
-// Error code constants for {{.Service.GoName}}
+// Service-specific error code constants (use shared constants from service_shared_nats.pb.go)
 const (
-	{{.Service.GoName}}ErrCodeInvalidArgument = "INVALID_ARGUMENT"
-	{{.Service.GoName}}ErrCodeNotFound        = "NOT_FOUND"
-	{{.Service.GoName}}ErrCodeAlreadyExists   = "ALREADY_EXISTS"
-	{{.Service.GoName}}ErrCodePermissionDenied = "PERMISSION_DENIED"
-	{{.Service.GoName}}ErrCodeUnauthenticated = "UNAUTHENTICATED"
-	{{.Service.GoName}}ErrCodeInternal        = "INTERNAL"
-	{{.Service.GoName}}ErrCodeUnavailable     = "UNAVAILABLE"
+	{{.Service.GoName}}ErrCodeInvalidArgument  = ErrCodeInvalidArgument
+	{{.Service.GoName}}ErrCodeNotFound         = ErrCodeNotFound
+	{{.Service.GoName}}ErrCodeAlreadyExists    = ErrCodeAlreadyExists
+	{{.Service.GoName}}ErrCodePermissionDenied = ErrCodePermissionDenied
+	{{.Service.GoName}}ErrCodeUnauthenticated  = ErrCodeUnauthenticated
+	{{.Service.GoName}}ErrCodeInternal         = ErrCodeInternal
+	{{.Service.GoName}}ErrCodeUnavailable      = ErrCodeUnavailable
 )
 
 // Is{{.Service.GoName}}InvalidArgument checks if the error is an invalid argument error
@@ -121,4 +121,5 @@ func New{{.Service.GoName}}InternalError(method, message string) error {
 func New{{.Service.GoName}}UnavailableError(method, message string) error {
 	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeUnavailable, Method: method, Message: message}
 }
+
 

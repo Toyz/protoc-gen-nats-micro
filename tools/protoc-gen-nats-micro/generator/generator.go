@@ -29,14 +29,14 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 		return fmt.Errorf("get language: %w", err)
 	}
 
-	// Generate file
-	filename := file.GeneratedFilenamePrefix + lang.FileExtension()
-	
 	// For non-Go languages, don't use Go import path
 	var importPath protogen.GoImportPath
 	if cfg.Language == "go" || cfg.Language == "golang" {
 		importPath = file.GoImportPath
 	}
+
+	// Generate main file with all services
+	filename := file.GeneratedFilenamePrefix + lang.FileExtension()
 	g := gen.NewGeneratedFile(filename, importPath)
 
 	// Generate header (package, imports)

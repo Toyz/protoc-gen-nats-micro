@@ -48,6 +48,56 @@ service OrderService {
   }
 }
 
+// Order tracking service for tracking shipments
+service OrderTrackingService {
+  option (nats.micro.service) = {
+    subject_prefix: "api.v1"
+    name: "order_tracking_service"
+    version: "1.0.0"
+    description: "Order tracking service"
+  };
+  
+  rpc TrackOrder(TrackOrderRequest) returns (TrackOrderResponse) {
+    option (google.api.http) = {
+      get: "/v1/orders/{order_id}/track"
+    };
+  }
+  
+  rpc UpdateTracking(UpdateTrackingRequest) returns (UpdateTrackingResponse) {
+    option (google.api.http) = {
+      post: "/v1/orders/{order_id}/tracking"
+      body: "*"
+    };
+  }
+}
+
+message TrackingEvent {
+  string location = 1;
+  string status = 2;
+  string timestamp = 3;
+  string description = 4;
+}
+
+message TrackOrderRequest {
+  string order_id = 1;
+}
+
+message TrackOrderResponse {
+  string order_id = 1;
+  string tracking_number = 2;
+  repeated TrackingEvent events = 3;
+}
+
+message UpdateTrackingRequest {
+  string order_id = 1;
+  TrackingEvent event = 2;
+}
+
+message UpdateTrackingResponse {
+  string order_id = 1;
+  string tracking_number = 2;
+}
+
 message OrderItem {
   string product_id = 1;
   string product_name = 2;

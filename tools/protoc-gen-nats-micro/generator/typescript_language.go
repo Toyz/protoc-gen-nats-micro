@@ -77,3 +77,28 @@ func (l *TypeScriptLanguage) GenerateHeader(g *protogen.GeneratedFile, file *pro
 
 	return nil
 }
+
+// GenerateShared generates shared types once per proto file
+func (l *TypeScriptLanguage) GenerateShared(g *protogen.GeneratedFile, file *protogen.File) error {
+	data := TemplateData{
+		File: file,
+	}
+
+	// Generate minimal header for shared file
+	var headerBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&headerBuf, "shared_header.ts.tmpl", data); err != nil {
+		return fmt.Errorf("execute shared header template: %w", err)
+	}
+	g.P(headerBuf.String())
+	g.P()
+
+	// Generate shared types (currently minimal for TypeScript)
+	var sharedBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&sharedBuf, "shared.ts.tmpl", data); err != nil {
+		return fmt.Errorf("execute shared template: %w", err)
+	}
+	g.P(sharedBuf.String())
+	g.P()
+
+	return nil
+}

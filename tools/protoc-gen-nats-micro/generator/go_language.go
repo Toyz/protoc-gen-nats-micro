@@ -77,3 +77,28 @@ func (l *GoLanguage) GenerateHeader(g *protogen.GeneratedFile, file *protogen.Fi
 
 	return nil
 }
+
+// GenerateShared generates shared types and functions once per proto file
+func (l *GoLanguage) GenerateShared(g *protogen.GeneratedFile, file *protogen.File) error {
+	data := TemplateData{
+		File: file,
+	}
+
+	// Generate minimal header for shared file
+	var headerBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&headerBuf, "shared_header.go.tmpl", data); err != nil {
+		return fmt.Errorf("execute shared header template: %w", err)
+	}
+	g.P(headerBuf.String())
+	g.P()
+
+	// Generate shared types (registerConfig, RegisterOption, etc.)
+	var sharedBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&sharedBuf, "shared.go.tmpl", data); err != nil {
+		return fmt.Errorf("execute shared template: %w", err)
+	}
+	g.P(sharedBuf.String())
+	g.P()
+
+	return nil
+}
