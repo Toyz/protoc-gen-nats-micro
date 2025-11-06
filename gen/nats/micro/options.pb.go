@@ -26,7 +26,8 @@ const (
 // Service-level options for NATS microservices
 type ServiceOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The NATS subject prefix for all endpoints in this service (required)
+	// The NATS subject prefix for all endpoints in this service
+	// Optional: defaults to snake_case of service name (e.g., "product_service")
 	SubjectPrefix string `protobuf:"bytes,1,opt,name=subject_prefix,json=subjectPrefix,proto3" json:"subject_prefix,omitempty"`
 	// Service name (optional, defaults to snake_case of service name)
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`

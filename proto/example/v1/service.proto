@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package example.v1;
+
+import "google/api/annotations.proto";
+import "nats/options.proto";
+
+option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/example/v1";
+
+// ExampleService demonstrates using all default values
+// No explicit service options - everything uses defaults:
+// - subject_prefix: "example_service" (auto-generated from service name)
+// - name: "ExampleService" (uses service name)
+// - version: "1.0.0"
+// - timeout: 0 (no timeout)
+service ExampleService {
+  // Simple echo endpoint - no explicit options
+  rpc Echo(EchoRequest) returns (EchoResponse) {
+    option (google.api.http) = {
+      post: "/v1/example/echo"
+      body: "*"
+    };
+  }
+
+  // Get greeting - also using all defaults
+  rpc GetGreeting(GetGreetingRequest) returns (GetGreetingResponse) {
+    option (google.api.http) = {
+      get: "/v1/example/greeting/{name}"
+    };
+  }
+}
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+  int64 timestamp = 2;
+}
+
+message GetGreetingRequest {
+  string name = 1;
+}
+
+message GetGreetingResponse {
+  string greeting = 1;
+}

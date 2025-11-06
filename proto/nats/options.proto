@@ -9,7 +9,8 @@ option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/nats/micro";
 
 // Service-level options for NATS microservices
 message ServiceOptions {
-  // The NATS subject prefix for all endpoints in this service (required)
+  // The NATS subject prefix for all endpoints in this service
+  // Optional: defaults to snake_case of service name (e.g., "product_service")
   string subject_prefix = 1;
   
   // Service name (optional, defaults to snake_case of service name)
