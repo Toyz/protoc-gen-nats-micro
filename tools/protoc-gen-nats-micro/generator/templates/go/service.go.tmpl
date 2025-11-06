@@ -7,7 +7,10 @@
 // {{.Service.GoName}}Nats is the NATS service interface for {{.Service.GoName}}
 type {{.Service.GoName}}Nats interface {
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
 	{{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
+{{- end}}
 {{- end}}
 }
 
@@ -35,7 +38,10 @@ type {{ToLowerFirst .Service.GoName}}Service struct {
 func (s *{{ToLowerFirst .Service.GoName}}Service) Endpoints() []{{.Service.GoName}}EndpointInfo {
 	return []{{.Service.GoName}}EndpointInfo{
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
 		{Name: "{{.GoName}}", Subject: s.subjectPrefix + ".{{ToSnakeCase .GoName}}"},
+{{- end}}
 {{- end}}
 	}
 }
@@ -83,14 +89,17 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 	}
 
 	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{
-		impl:    impl,
-		timeout: cfg.timeout,
+		impl:           impl,
+		serviceTimeout: cfg.timeout,
 	}
 
 	// Map of endpoint names to their handlers
 	endpoints := map[string]micro.Handler{
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
 		"{{ToSnakeCase .GoName}}": micro.HandlerFunc(handlers.{{.GoName}}),
+{{end -}}
 {{end -}}
 	}
 
@@ -119,17 +128,26 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 
 // {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
 type {{ToLowerFirst .Service.GoName}}Handlers struct {
-	impl    {{.Service.GoName}}Nats
-	timeout time.Duration
+	impl           {{.Service.GoName}}Nats
+	serviceTimeout time.Duration // Default timeout for all endpoints
 }
 
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
 func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	// Determine effective timeout: endpoint-specific timeout overrides service timeout
+	// If endpoint timeout is set (> 0), use it; otherwise use service timeout
+	timeout := h.serviceTimeout
+	{{- if gt $endpointOpts.Timeout.Nanoseconds 0}}
+	timeout = {{$endpointOpts.Timeout.Seconds}} * time.Second // Endpoint-specific timeout
+	{{- end}}
+	
 	// Create context with timeout if configured, otherwise use background context
 	ctx := context.Background()
 	var cancel context.CancelFunc
-	if h.timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, h.timeout)
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
@@ -174,6 +192,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		fmt.Fprintf(os.Stderr, "failed to send response for {{.GoName}}: %v\n", err)
 	}
 }
+{{end}}
 {{end}}
 
 

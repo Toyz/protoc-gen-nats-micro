@@ -39,7 +39,10 @@ type ServiceOptions struct {
 	Metadata map[string]string `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Request timeout (optional, 0 means no timeout)
 	// This is the default timeout for all endpoints in this service
-	Timeout       *durationpb.Duration `protobuf:"bytes,6,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Timeout *durationpb.Duration `protobuf:"bytes,6,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	// Skip code generation for this service (optional, defaults to false)
+	// Set to true to exclude this service from NATS micro generation
+	Skip          bool `protobuf:"varint,7,opt,name=skip,proto3" json:"skip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -116,12 +119,22 @@ func (x *ServiceOptions) GetTimeout() *durationpb.Duration {
 	return nil
 }
 
+func (x *ServiceOptions) GetSkip() bool {
+	if x != nil {
+		return x.Skip
+	}
+	return false
+}
+
 // Endpoint-level options for individual RPC methods
 type EndpointOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Request timeout (optional, 0 means use service default)
 	// Overrides the service-level timeout for this specific endpoint
-	Timeout       *durationpb.Duration `protobuf:"bytes,1,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Timeout *durationpb.Duration `protobuf:"bytes,1,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	// Skip code generation for this endpoint (optional, defaults to false)
+	// Set to true to exclude this specific endpoint from NATS micro generation
+	Skip          bool `protobuf:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -163,6 +176,13 @@ func (x *EndpointOptions) GetTimeout() *durationpb.Duration {
 	return nil
 }
 
+func (x *EndpointOptions) GetSkip() bool {
+	if x != nil {
+		return x.Skip
+	}
+	return false
+}
+
 var file_nats_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
@@ -199,19 +219,21 @@ var File_nats_options_proto protoreflect.FileDescriptor
 const file_nats_options_proto_rawDesc = "" +
 	"\n" +
 	"\x12nats/options.proto\x12\n" +
-	"nats.micro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xbf\x02\n" +
+	"nats.micro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd3\x02\n" +
 	"\x0eServiceOptions\x12%\n" +
 	"\x0esubject_prefix\x18\x01 \x01(\tR\rsubjectPrefix\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12D\n" +
 	"\bmetadata\x18\x05 \x03(\v2(.nats.micro.ServiceOptions.MetadataEntryR\bmetadata\x123\n" +
-	"\atimeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1a;\n" +
+	"\atimeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
+	"\x04skip\x18\a \x01(\bR\x04skip\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"F\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +
 	"\x0fEndpointOptions\x123\n" +
-	"\atimeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\atimeout:W\n" +
+	"\atimeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
+	"\x04skip\x18\x02 \x01(\bR\x04skip:W\n" +
 	"\aservice\x12\x1f.google.protobuf.ServiceOptions\x18ц\x03 \x01(\v2\x1a.nats.micro.ServiceOptionsR\aservice:Y\n" +
 	"\bendpoint\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\v2\x1b.nats.micro.EndpointOptionsR\bendpointB6Z4github.com/toyz/protoc-gen-nats-micro/gen/nats/microb\x06proto3"
 

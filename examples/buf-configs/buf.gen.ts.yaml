@@ -10,7 +10,7 @@ plugins:
       - long_type_string
   
   # Our custom NATS micro TypeScript generation
-  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro.exe
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro
     out: gen
     opt:
       - language=typescript

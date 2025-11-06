@@ -53,6 +53,12 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 	// Generate each service
 	for _, service := range file.Services {
 		opts := GetServiceOptions(service)
+		
+		// Skip this service if skip is set to true
+		if opts.Skip {
+			continue
+		}
+		
 		if err := lang.Generate(g, service, opts); err != nil {
 			return fmt.Errorf("generate service %s: %w", service.GoName, err)
 		}

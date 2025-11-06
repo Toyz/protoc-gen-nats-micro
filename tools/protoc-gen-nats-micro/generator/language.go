@@ -34,11 +34,12 @@ type TemplateData struct {
 // FuncMap returns template helper functions
 func FuncMap() template.FuncMap {
 	return template.FuncMap{
-		"ToSnakeCase":   ToSnakeCase,
-		"ToLowerFirst":  ToLowerFirst,
-		"ToUpperFirst":  ToUpperFirst,
-		"ToCamelCase":   ToCamelCase,
-		"ToKebabCase":   ToKebabCase,
+		"ToSnakeCase":        ToSnakeCase,
+		"ToLowerFirst":       ToLowerFirst,
+		"ToUpperFirst":       ToUpperFirst,
+		"ToCamelCase":        ToCamelCase,
+		"ToKebabCase":        ToKebabCase,
+		"GetEndpointOptions": GetEndpointOptions,
 	}
 }
 

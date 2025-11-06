@@ -13,7 +13,10 @@ export interface {{.Service.GoName}}EndpointInfo {
  */
 export interface I{{.Service.GoName}}NatsClient {
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}, opts?: RequestOptions): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
 {{- end}}
   endpoints(): {{.Service.GoName}}EndpointInfo[];
 }
@@ -47,6 +50,8 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   }
 
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   /**
    * {{.GoName}} sends a {{.GoName}} request to the service via NATS.
    * @param request - The request message
@@ -83,6 +88,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   }
 
 {{end -}}
+{{end -}}
   /**
    * Returns information about all service endpoints this client can call.
    * This is useful for debugging, monitoring, and introspection.
@@ -90,7 +96,10 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   endpoints(): {{.Service.GoName}}EndpointInfo[] {
     return [
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
       { name: '{{.GoName}}', subject: `${this.subjectPrefix}.{{ToSnakeCase .GoName}}` },
+{{- end}}
 {{- end}}
     ];
   }

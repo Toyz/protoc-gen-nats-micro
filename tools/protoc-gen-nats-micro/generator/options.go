@@ -18,6 +18,7 @@ type ServiceOptions struct {
 	Description   string
 	Metadata      map[string]string
 	Timeout       time.Duration
+	Skip          bool // Skip generation for this service
 }
 
 // GetServiceOptions extracts service options from proto service definition
@@ -39,6 +40,12 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 	if service.Desc.Options() != nil && proto.HasExtension(service.Desc.Options(), natspb.E_Service) {
 		ext := proto.GetExtension(service.Desc.Options(), natspb.E_Service)
 		if svcOpts, ok := ext.(*natspb.ServiceOptions); ok {
+			// Check skip first - if true, mark it and return early
+			if svcOpts.Skip {
+				opts.Skip = true
+				return opts
+			}
+			
 			if svcOpts.SubjectPrefix != "" {
 				opts.SubjectPrefix = svcOpts.SubjectPrefix
 			}
@@ -56,6 +63,33 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 			}
 			if svcOpts.Timeout != nil {
 				opts.Timeout = svcOpts.Timeout.AsDuration()
+			}
+		}
+	}
+
+	return opts
+}
+
+// EndpointOptions contains metadata about an endpoint
+type EndpointOptions struct {
+	Skip    bool          // Skip generation for this endpoint
+	Timeout time.Duration // Endpoint-specific timeout (0 = use service default)
+}
+
+// GetEndpointOptions extracts endpoint options from proto method definition
+func GetEndpointOptions(method *protogen.Method) EndpointOptions {
+	opts := EndpointOptions{
+		Skip:    false,
+		Timeout: 0, // 0 means use service default
+	}
+
+	// Try to read the nats.micro.endpoint extension
+	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_Endpoint) {
+		ext := proto.GetExtension(method.Desc.Options(), natspb.E_Endpoint)
+		if endpointOpts, ok := ext.(*natspb.EndpointOptions); ok {
+			opts.Skip = endpointOpts.Skip
+			if endpointOpts.Timeout != nil {
+				opts.Timeout = endpointOpts.Timeout.AsDuration()
 			}
 		}
 	}

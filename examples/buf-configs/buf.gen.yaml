@@ -30,7 +30,7 @@ plugins:
       - use_go_templates=true
   
   # Our custom NATS micro generation (Go)
-  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro.exe
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro
     out: gen
     opt:
       - module=github.com/toyz/protoc-gen-nats-micro/gen

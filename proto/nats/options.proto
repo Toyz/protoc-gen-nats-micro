@@ -28,6 +28,10 @@ message ServiceOptions {
   // Request timeout (optional, 0 means no timeout)
   // This is the default timeout for all endpoints in this service
   google.protobuf.Duration timeout = 6;
+  
+  // Skip code generation for this service (optional, defaults to false)
+  // Set to true to exclude this service from NATS micro generation
+  bool skip = 7;
 }
 
 // Endpoint-level options for individual RPC methods
@@ -35,6 +39,10 @@ message EndpointOptions {
   // Request timeout (optional, 0 means use service default)
   // Overrides the service-level timeout for this specific endpoint
   google.protobuf.Duration timeout = 1;
+  
+  // Skip code generation for this endpoint (optional, defaults to false)
+  // Set to true to exclude this specific endpoint from NATS micro generation
+  bool skip = 2;
 }
 
 extend google.protobuf.ServiceOptions {

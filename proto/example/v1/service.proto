@@ -28,6 +28,34 @@ service ExampleService {
       get: "/v1/example/greeting/{name}"
     };
   }
+  
+  // AdminReset is a dangerous operation that we want to skip in NATS generation
+  // This might only be available via gRPC for internal admin use
+  rpc AdminReset(AdminResetRequest) returns (AdminResetResponse) {
+    option (nats.micro.endpoint).skip = true;
+    option (google.api.http) = {
+      post: "/v1/example/admin/reset"
+      body: "*"
+    };
+  }
+}
+
+// HealthCheckService is skipped entirely from NATS generation
+// This service might be better suited for HTTP-only health checks
+service HealthCheckService {
+  option (nats.micro.service).skip = true;
+  
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse) {
+    option (google.api.http) = {
+      get: "/v1/health"
+    };
+  }
+  
+  rpc DetailedCheck(HealthCheckRequest) returns (DetailedHealthCheckResponse) {
+    option (google.api.http) = {
+      get: "/v1/health/detailed"
+    };
+  }
 }
 
 message EchoRequest {
@@ -45,4 +73,27 @@ message GetGreetingRequest {
 
 message GetGreetingResponse {
   string greeting = 1;
+}
+
+message AdminResetRequest {
+  string confirmation_token = 1; // Requires admin token for safety
+}
+
+message AdminResetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message HealthCheckRequest {
+  // Empty request
+}
+
+message HealthCheckResponse {
+  string status = 1; // "ok" or "error"
+}
+
+message DetailedHealthCheckResponse {
+  string status = 1;
+  map<string, string> components = 2; // Component name -> status
+  int64 uptime_seconds = 3;
 }

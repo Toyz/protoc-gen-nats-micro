@@ -9,7 +9,10 @@
  */
 export interface I{{.Service.GoName}}Nats {
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
 {{- end}}
 }
 
@@ -41,7 +44,10 @@ export class {{.Service.GoName}}Service {
   endpoints(): {{.Service.GoName}}EndpointInfo[] {
     return [
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
       { name: '{{.GoName}}', subject: `${this.subjectPrefix}.{{ToSnakeCase .GoName}}` },
+{{- end}}
 {{- end}}
     ];
   }
@@ -122,9 +128,12 @@ export async function register{{.Service.GoName}}Handlers(
   const group = subjectPrefix ? service.addGroup(subjectPrefix) : service;
   
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   await group.addEndpoint('{{ToSnakeCase .GoName}}', {
     handler: handlers.{{ToLowerFirst .GoName}}.bind(handlers),
   });
+{{end -}}
 {{end}}
 
   return new {{.Service.GoName}}Service(service, subjectPrefix);
@@ -136,10 +145,12 @@ export async function register{{.Service.GoName}}Handlers(
 class {{.Service.GoName}}Handlers {
   constructor(
     private readonly impl: I{{.Service.GoName}}Nats,
-    private readonly timeout: number
+    private readonly serviceTimeout: number // Default timeout for all endpoints (milliseconds)
   ) {}
 
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   async {{ToLowerFirst .GoName}}(err: ServiceError | null, msg: any): Promise<void> {
     if (err) {
       throw err;
@@ -149,13 +160,16 @@ class {{.Service.GoName}}Handlers {
       // Decode request
       const request = pb.{{.Input.GoIdent.GoName}}.decode(msg.data);
 
+      // Determine effective timeout: endpoint-specific timeout overrides service timeout
+      const timeout = {{if gt $endpointOpts.Timeout.Nanoseconds 0}}{{$endpointOpts.Timeout.Milliseconds}}{{else}}this.serviceTimeout{{end}};
+
       // Call implementation with timeout if configured
       let response: pb.{{.Output.GoIdent.GoName}};
-      if (this.timeout > 0) {
+      if (timeout > 0) {
         response = await Promise.race([
           this.impl.{{ToLowerFirst .GoName}}(request),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), this.timeout)
+            setTimeout(() => reject(new Error('Request timeout')), timeout)
           ),
         ]);
       } else {
@@ -185,5 +199,6 @@ class {{.Service.GoName}}Handlers {
       msg.respond(data || new Uint8Array(0), { headers: h });
     }
   }
-{{end}}
+{{- end}}
+{{- end}}
 }

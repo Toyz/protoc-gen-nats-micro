@@ -3,7 +3,10 @@
 // This interface allows for easier dependency injection and testing
 type {{.Service.GoName}}NatsClientInterface interface {
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
   {{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
+{{- end}}
 {{- end}}
   Endpoints() []{{.Service.GoName}}EndpointInfo
 }
@@ -28,6 +31,8 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
 }
 
 {{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
 // {{.GoName}} sends a {{.GoName}} request to the service via NATS.
 // Returns an error if the request fails or the service returns an error.
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
@@ -63,12 +68,16 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 }
 
 {{end -}}
+{{end -}}
 // Endpoints returns information about all service endpoints this client can call.
 // This is useful for debugging, monitoring, and introspection.
 func (c *{{.Service.GoName}}NatsClient) Endpoints() []{{.Service.GoName}}EndpointInfo {
   return []{{.Service.GoName}}EndpointInfo{
 {{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
     {Name: "{{.GoName}}", Subject: c.subjectPrefix + ".{{ToSnakeCase .GoName}}"},
+{{- end}}
 {{- end}}
   }
 }
