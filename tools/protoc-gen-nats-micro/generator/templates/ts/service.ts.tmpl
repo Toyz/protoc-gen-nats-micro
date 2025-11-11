@@ -172,7 +172,7 @@ class {{.Service.GoName}}Handlers {
 
     try {
       // Decode request
-      const request = pb.{{.Input.GoIdent.GoName}}.decode(msg.data);
+      const request = pb.{{.Input.GoIdent.GoName}}.fromBinary(msg.data);
 
       // Determine effective timeout: endpoint-specific timeout overrides service timeout
       const timeout = {{if gt $endpointOpts.Timeout.Nanoseconds 0}}{{$endpointOpts.Timeout.Milliseconds}}{{else}}this.serviceTimeout{{end}};
@@ -205,7 +205,7 @@ class {{.Service.GoName}}Handlers {
       }
 
       // Encode and send response
-      const data = pb.{{.Output.GoIdent.GoName}}.encode(response).finish();
+      const data = pb.{{.Output.GoIdent.GoName}}.toBinary(response);
       msg.respond(data);
     } catch (error) {
       // Handle errors

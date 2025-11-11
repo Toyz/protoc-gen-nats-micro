@@ -77,7 +77,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
       const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
       
       // Serialize request
-      const data = pb.{{.Input.GoIdent.GoName}}.encode(req).finish();
+      const data = pb.{{.Input.GoIdent.GoName}}.toBinary(req);
       
       // Send request
       const requestOpts: RequestOptions = {
@@ -95,7 +95,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
       }
       
       // Deserialize response into reply object
-      const decoded = pb.{{.Output.GoIdent.GoName}}.decode(msg.data);
+      const decoded = pb.{{.Output.GoIdent.GoName}}.fromBinary(msg.data);
       Object.assign(reply, decoded);
     };
 

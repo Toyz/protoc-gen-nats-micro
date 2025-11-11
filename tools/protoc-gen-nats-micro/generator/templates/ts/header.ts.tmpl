@@ -3,7 +3,7 @@
 import { NatsConnection, headers, RequestOptions } from 'nats';
 import { ServiceClient, Service, ServiceConfig, ServiceError } from '@nats-io/services';
 {{- range .File.Services}}
-import * as pb from './{{$.File.GeneratedFilenamePrefix}}.pb';
+import * as pb from './service';
 {{- end}}
 import {
   UnaryServerInfo,
@@ -13,4 +13,4 @@ import {
   UnaryClientInterceptor,
   chainUnaryServerInterceptors,
   chainUnaryClientInterceptors,
-} from './{{$.File.GeneratedFilenamePrefix}}/shared_nats.pb';
+} from './service/shared_nats.pb';

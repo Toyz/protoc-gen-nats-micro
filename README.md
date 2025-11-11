@@ -343,9 +343,9 @@ gen/order/v1/
 ```
 
 **This example project** also uses additional plugins for demonstration:
-- `protoc-gen-go-grpc` → gRPC services (`service_grpc.pb.go`)
-- `protoc-gen-grpc-gateway` → REST gateway (`service.pb.gw.go`)
-- `protoc-gen-openapiv2` → OpenAPI specs (`service.swagger.yaml`)
+- `protoc-gen-go-grpc` -> gRPC services (`service_grpc.pb.go`)
+- `protoc-gen-grpc-gateway` -> REST gateway (`service.pb.gw.go`)
+- `protoc-gen-openapiv2` -> OpenAPI specs (`service.swagger.yaml`)
 
 These are **optional** - you only need `protoc-gen-go` and `protoc-gen-nats-micro` for NATS microservices.
 
@@ -806,13 +806,13 @@ proto files
     ↓
 buf generate (or protoc)
     ↓
-├─→ protoc-gen-go          → messages (service.pb.go)
-└─→ protoc-gen-nats-micro  → NATS (service_nats.pb.go) ⭐
+├── protoc-gen-go          -> messages (service.pb.go)
+└── protoc-gen-nats-micro  -> NATS (service_nats.pb.go)
 
 Optional (used in this example project):
-├─→ protoc-gen-go-grpc     → gRPC (service_grpc.pb.go)
-├─→ protoc-gen-grpc-gateway → REST (service.pb.gw.go)
-└─→ protoc-gen-openapiv2   → OpenAPI (service.swagger.yaml)
+├── protoc-gen-go-grpc     -> gRPC (service_grpc.pb.go)
+├── protoc-gen-grpc-gateway -> REST (service.pb.gw.go)
+└── protoc-gen-openapiv2   -> OpenAPI (service.swagger.yaml)
 ```
 
 ### Two-Phase Build
@@ -1062,7 +1062,7 @@ This plugin currently supports **unary request-response** operations only. Strea
 
 ### Why Streaming Isn't Supported
 
-NATS micro is built on the **request-reply pattern** (1 request → 1 response), which is fundamentally different from gRPC's HTTP/2-based streaming model. While NATS itself supports streaming via JetStream, integrating gRPC-style streaming into the micro framework would require significant architectural changes that diverge from NATS' core design.
+NATS micro is built on the **request-reply pattern** (1 request -> 1 response), which is fundamentally different from gRPC's HTTP/2-based streaming model. While NATS itself supports streaming via JetStream, integrating gRPC-style streaming into the micro framework would require significant architectural changes that diverge from NATS' core design.
 
 ### Alternatives to Streaming
 
