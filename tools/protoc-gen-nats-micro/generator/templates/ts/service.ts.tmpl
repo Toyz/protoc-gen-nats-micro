@@ -177,6 +177,9 @@ class {{.Service.GoName}}Handlers {
       // Determine effective timeout: endpoint-specific timeout overrides service timeout
       const timeout = {{if gt $endpointOpts.Timeout.Nanoseconds 0}}{{$endpointOpts.Timeout.Milliseconds}}{{else}}this.serviceTimeout{{end}};
 
+      // Extract incoming headers from NATS message for use in interceptors/service
+      const headers = msg.headers;
+
       // Define the handler function
       const handler = async (req: any): Promise<any> => {
         if (timeout > 0) {
@@ -198,6 +201,7 @@ class {{.Service.GoName}}Handlers {
           service: '{{$.Service.GoName}}',
           method: '{{.GoName}}',
           subject: '{{$.Options.SubjectPrefix}}.{{ToSnakeCase .GoName}}',
+          headers: headers, // Pass headers to interceptor
         };
         response = await this.interceptor(request, info, handler);
       } else {

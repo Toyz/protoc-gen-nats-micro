@@ -68,21 +68,22 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
    */
   async {{ToLowerFirst .GoName}}(
     request: pb.{{.Input.GoIdent.GoName}},
-    opts?: RequestOptions
+    opts?: RequestOptions & { headers?: MsgHdrs }
   ): Promise<pb.{{.Output.GoIdent.GoName}}> {
     const method = '{{.GoName}}';
     
     // Define the invoker function that performs the actual NATS call
-    const invoker: UnaryInvoker = async (m: string, req: any, reply: any) => {
+    const invoker: UnaryInvoker = async (m: string, req: any, reply: any, headers?: MsgHdrs) => {
       const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
       
       // Serialize request
       const data = pb.{{.Input.GoIdent.GoName}}.toBinary(req);
       
-      // Send request
+      // Send request with optional headers
       const requestOpts: RequestOptions = {
         ...opts,
         timeout: opts?.timeout || this.timeout,
+        headers: headers || opts?.headers,
       };
       
       const msg = await this.nc.request(subject, data, requestOpts);
@@ -103,9 +104,9 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     
     // Execute through interceptor chain if configured
     if (this.interceptor) {
-      await this.interceptor(method, request, response, invoker);
+      await this.interceptor(method, request, response, invoker, opts?.headers);
     } else {
-      await invoker(method, request, response);
+      await invoker(method, request, response, opts?.headers);
     }
     
     return response;

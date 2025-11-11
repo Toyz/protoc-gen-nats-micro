@@ -10,6 +10,43 @@ const (
 	ErrCodeUnavailable      = "UNAVAILABLE"
 )
 
+// Context keys for NATS headers
+type contextKey int
+
+const (
+	incomingHeadersKey contextKey = iota
+	outgoingHeadersKey
+)
+
+// IncomingHeaders extracts incoming NATS headers from the context (server-side)
+// Returns nil if no headers are present
+func IncomingHeaders(ctx context.Context) micro.Headers {
+	if headers, ok := ctx.Value(incomingHeadersKey).(micro.Headers); ok {
+		return headers
+	}
+	return nil
+}
+
+// OutgoingHeaders extracts outgoing NATS headers from the context (client-side)
+// Returns nil if no headers are present
+func OutgoingHeaders(ctx context.Context) nats.Header {
+	if headers, ok := ctx.Value(outgoingHeadersKey).(nats.Header); ok {
+		return headers
+	}
+	return nil
+}
+
+// WithIncomingHeaders adds incoming NATS headers to the context (used internally by server)
+func WithIncomingHeaders(ctx context.Context, headers micro.Headers) context.Context {
+	return context.WithValue(ctx, incomingHeadersKey, headers)
+}
+
+// WithOutgoingHeaders adds outgoing NATS headers to the context (used by client)
+// Example: ctx := WithOutgoingHeaders(ctx, nats.Header{"Authorization": []string{"Bearer token"}})
+func WithOutgoingHeaders(ctx context.Context, headers nats.Header) context.Context {
+	return context.WithValue(ctx, outgoingHeadersKey, headers)
+}
+
 // UnaryServerInfo contains information about a unary RPC
 type UnaryServerInfo struct {
 	Service     string // Service name

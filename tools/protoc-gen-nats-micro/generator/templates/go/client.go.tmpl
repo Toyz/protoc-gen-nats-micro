@@ -73,7 +73,17 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
       return err
     }
 
-    msg, err := c.nc.RequestWithContext(ctx, subject, data)
+    // Extract outgoing headers from context and attach to NATS message
+    var msg *nats.Msg
+    if headers := OutgoingHeaders(ctx); headers != nil {
+      msg, err = c.nc.RequestMsgWithContext(ctx, &nats.Msg{
+        Subject: subject,
+        Data:    data,
+        Header:  headers,
+      })
+    } else {
+      msg, err = c.nc.RequestWithContext(ctx, subject, data)
+    }
     if err != nil {
       return err
     }

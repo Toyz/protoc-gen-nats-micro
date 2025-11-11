@@ -10,18 +10,23 @@
  * Run: bun run client.ts
  */
 
-import { connect } from 'nats';
+import { connect, headers } from 'nats';
 import * as pb from '../../gen/product/v1/service';
 import type { UnaryClientInterceptor } from '../../gen/product/v1/service/shared_nats.pb';
 import { ProductServiceNatsClient } from '../../gen/product/v1/service_nats.pb';
 
-// Client logging interceptor
-const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request, reply, invoker) => {
+// Client logging interceptor - also demonstrates adding headers
+const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request, reply, invoker, hdrs) => {
   console.log(`→ [Client] Calling ${method}`);
   const start = Date.now();
 
+  // Add custom headers for tracing and metadata
+  const customHeaders = hdrs || headers();
+  customHeaders.set('X-Trace-Id', `trace-${Date.now()}`);
+  customHeaders.set('X-Client-Version', '1.0.0');
+
   try {
-    await invoker(method, request, reply);
+    await invoker(method, request, reply, customHeaders);
     const duration = Date.now() - start;
     console.log(`✓ [Client] ${method} completed in ${duration}ms`);
   } catch (error) {

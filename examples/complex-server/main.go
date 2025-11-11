@@ -316,10 +316,20 @@ func (s *binaryDemoService) GetUser(ctx context.Context, req *demov1.GetUserRequ
 
 // Example server interceptors
 
-// Product service interceptors
+// Product service interceptors - demonstrates reading headers
 func productLoggingInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
 	start := time.Now()
 	log.Printf("→ [%s.%s] Request started", info.Service, info.Method)
+
+	// Read incoming headers from context
+	if headers := productv1.IncomingHeaders(ctx); headers != nil {
+		if traceID, ok := headers["X-Trace-Id"]; ok && len(traceID) > 0 {
+			log.Printf("  [Headers] Trace-ID: %s", traceID[0])
+		}
+		if clientVer, ok := headers["X-Client-Version"]; ok && len(clientVer) > 0 {
+			log.Printf("  [Headers] Client-Version: %s", clientVer[0])
+		}
+	}
 
 	resp, err := handler(ctx, req)
 

@@ -113,10 +113,22 @@ const productService: IProductServiceNats = {
   },
 };
 
-// Logging interceptor
+// Logging interceptor - also demonstrates reading headers
 const loggingInterceptor: UnaryServerInterceptor = async (request, info, handler) => {
   const start = Date.now();
   console.log(`→ [${info.service}.${info.method}] Request started`);
+
+  // Read incoming headers if present
+  if (info.headers) {
+    const traceId = info.headers.get('X-Trace-Id');
+    const clientVersion = info.headers.get('X-Client-Version');
+    if (traceId) {
+      console.log(`  [Headers] Trace-ID: ${traceId}`);
+    }
+    if (clientVersion) {
+      console.log(`  [Headers] Client-Version: ${clientVersion}`);
+    }
+  }
 
   try {
     const response = await handler(request);

@@ -2,6 +2,8 @@
 // This file contains shared types used by all NATS microservices in this proto file
 // It is generated once per proto file to avoid duplication when multiple services exist
 
+import type { MsgHdrs } from 'nats';
+
 /**
  * UnaryServerInfo contains information about a unary RPC
  */
@@ -9,6 +11,7 @@ export interface UnaryServerInfo {
   service: string;  // Service name
   method: string;   // Method name
   subject: string;  // NATS subject
+  headers?: MsgHdrs; // Incoming NATS headers
 }
 
 /**
@@ -31,19 +34,20 @@ export type UnaryServerInterceptor = (
 /**
  * UnaryInvoker is called by a UnaryClientInterceptor to complete the RPC
  */
-export type UnaryInvoker = (method: string, request: any, reply: any) => Promise<void>;
+export type UnaryInvoker = (method: string, request: any, reply: any, headers?: MsgHdrs) => Promise<void>;
 
 /**
  * UnaryClientInterceptor is middleware that can intercept unary RPC calls on the client
- * It receives the method name, request, reply, and invoker.
+ * It receives the method name, request, reply, optional headers, and invoker.
  * The interceptor can inspect/modify requests, handle retries, logging, etc.
- * It must call invoker(method, req, reply) to continue the chain.
+ * It must call invoker(method, req, reply, headers) to continue the chain.
  */
 export type UnaryClientInterceptor = (
   method: string,
   request: any,
   reply: any,
-  invoker: UnaryInvoker
+  invoker: UnaryInvoker,
+  headers?: MsgHdrs
 ) => Promise<void>;
 
 /**
@@ -94,16 +98,16 @@ export function chainUnaryClientInterceptors(
     return interceptors[0];
   }
   
-  return async (method: string, request: any, reply: any, invoker: UnaryInvoker): Promise<void> => {
+  return async (method: string, request: any, reply: any, invoker: UnaryInvoker, headers?: MsgHdrs): Promise<void> => {
     // Build chain from last to first
     let chainedInvoker = invoker;
     for (let i = n - 1; i >= 0; i--) {
       const interceptor = interceptors[i];
       const nextInvoker = chainedInvoker;
-      chainedInvoker = async (currentMethod: string, currentReq: any, currentReply: any) => {
-        return interceptor(currentMethod, currentReq, currentReply, nextInvoker);
+      chainedInvoker = async (currentMethod: string, currentReq: any, currentReply: any, currentHeaders?: MsgHdrs) => {
+        return interceptor(currentMethod, currentReq, currentReply, nextInvoker, currentHeaders);
       };
     }
-    return chainedInvoker(method, request, reply);
+    return chainedInvoker(method, request, reply, headers);
   };
 }

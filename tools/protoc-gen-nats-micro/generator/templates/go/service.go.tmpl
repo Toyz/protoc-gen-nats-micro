@@ -181,6 +181,11 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		defer cancel()
 	}
 
+	// Add incoming NATS headers to context so service methods can access them
+	if req.Headers() != nil {
+		ctx = WithIncomingHeaders(ctx, req.Headers())
+	}
+
 	var msg {{.Input.GoIdent.GoName}}
 	if h.useJSON {
 		if err := protojson.Unmarshal(req.Data(), &msg); err != nil {
