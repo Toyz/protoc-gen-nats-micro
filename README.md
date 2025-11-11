@@ -1,13 +1,9 @@
 # protoc-gen-nats-micro
-**Codename: Apex**
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/toyz/protoc-gen-nats-micro)](https://github.com/Toyz/protoc-gen-nats-micro)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Built by Helba](https://img.shields.io/badge/built%20by-helba.ai-cyan)](https://helba.ai)
 
 A Protocol Buffers compiler plugin that generates type-safe NATS microservice code. Define services in protobuf, get production-ready NATS microservices with automatic service discovery, load balancing, and zero configuration.
-
-> *The apex predator of NATS code generation.*
 
 ## Overview
 
@@ -1239,10 +1235,6 @@ MIT License - See LICENSE file for details
 
 ## Author
 
-Built by [Helba](https://helba.ai) - Digital Architect specializing in high-performance backend systems.
+Created by [Helba](https://helba.ai)
 
-An R&D exploration of NATS-based microservice patterns with modern protobuf tooling, pushing the boundaries of what's possible with code generation.
-
----
-
-*"The apex predator of NATS code generation."*
+A Protocol Buffers code generator for NATS microservices, integrating modern protobuf tooling with the official nats.go/micro framework.
