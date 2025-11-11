@@ -19,6 +19,7 @@ type ServiceOptions struct {
 	Metadata      map[string]string
 	Timeout       time.Duration
 	Skip          bool // Skip generation for this service
+	UseJSON       bool // Use JSON encoding instead of binary protobuf
 }
 
 // GetServiceOptions extracts service options from proto service definition
@@ -64,6 +65,7 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 			if svcOpts.Timeout != nil {
 				opts.Timeout = svcOpts.Timeout.AsDuration()
 			}
+			opts.UseJSON = svcOpts.Json
 		}
 	}
 

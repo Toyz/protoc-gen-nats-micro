@@ -14,6 +14,7 @@ import (
 
 	metadatav1 "github.com/toyz/protoc-gen-nats-micro/gen/common/metadata/v1"
 	typesv1 "github.com/toyz/protoc-gen-nats-micro/gen/common/types/v1"
+	demov1 "github.com/toyz/protoc-gen-nats-micro/gen/demo/v1"
 	orderv1 "github.com/toyz/protoc-gen-nats-micro/gen/order/v1"
 	orderv2 "github.com/toyz/protoc-gen-nats-micro/gen/order/v2"
 	productv1 "github.com/toyz/protoc-gen-nats-micro/gen/product/v1"
@@ -257,6 +258,62 @@ func (s *orderServiceV2) UpdateOrderStatus(ctx context.Context, req *orderv2.Upd
 	return &orderv2.UpdateOrderStatusResponse{Order: order}, nil
 }
 
+// JSON Demo service implementation
+type jsonDemoService struct{}
+
+func (s *jsonDemoService) Echo(ctx context.Context, req *demov1.EchoRequest) (*demov1.EchoResponse, error) {
+	log.Printf("✓ [JSON] Echo: %s", req.Message)
+	return &demov1.EchoResponse{
+		Message:   "JSON Echo: " + req.Message,
+		Timestamp: time.Now().Unix(),
+		Encoding:  "json",
+	}, nil
+}
+
+func (s *jsonDemoService) GetUser(ctx context.Context, req *demov1.GetUserRequest) (*demov1.GetUserResponse, error) {
+	log.Printf("✓ [JSON] GetUser: %s", req.Id)
+	return &demov1.GetUserResponse{
+		User: &demov1.User{
+			Id:    req.Id,
+			Name:  "json_user_" + req.Id,
+			Email: "json@example.com",
+			Roles: []string{"user", "admin"},
+			Metadata: map[string]string{
+				"encoding": "json",
+				"service":  "json_service",
+			},
+		},
+	}, nil
+}
+
+// Binary Demo service implementation
+type binaryDemoService struct{}
+
+func (s *binaryDemoService) Echo(ctx context.Context, req *demov1.EchoRequest) (*demov1.EchoResponse, error) {
+	log.Printf("✓ [BINARY] Echo: %s", req.Message)
+	return &demov1.EchoResponse{
+		Message:   "Binary Echo: " + req.Message,
+		Timestamp: time.Now().Unix(),
+		Encoding:  "binary",
+	}, nil
+}
+
+func (s *binaryDemoService) GetUser(ctx context.Context, req *demov1.GetUserRequest) (*demov1.GetUserResponse, error) {
+	log.Printf("✓ [BINARY] GetUser: %s", req.Id)
+	return &demov1.GetUserResponse{
+		User: &demov1.User{
+			Id:    req.Id,
+			Name:  "binary_user_" + req.Id,
+			Email: "binary@example.com",
+			Roles: []string{"user", "tester"},
+			Metadata: map[string]string{
+				"encoding": "binary",
+				"service":  "binary_service",
+			},
+		},
+	}, nil
+}
+
 func main() {
 	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
@@ -296,6 +353,22 @@ func main() {
 	}
 	log.Println("✓ Registered OrderService v2")
 
+	// Register JSON demo service (subject prefix "demo.json" with JSON encoding!)
+	jsonDemoSvc := &jsonDemoService{}
+	jsonService, err := demov1.RegisterJSONServiceHandlers(nc, jsonDemoSvc)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("✓ Registered JSONService (JSON encoding)")
+
+	// Register Binary demo service (subject prefix "demo.binary" with binary encoding!)
+	binaryDemoSvc := &binaryDemoService{}
+	binaryService, err := demov1.RegisterBinaryServiceHandlers(nc, binaryDemoSvc)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("✓ Registered BinaryService (Binary encoding)")
+
 	// Print all service endpoints
 	log.Println("\n📡 ProductService Endpoints:")
 	for _, ep := range productService.Endpoints() {
@@ -309,6 +382,16 @@ func main() {
 
 	log.Println("\n📡 OrderService V2 Endpoints:")
 	for _, ep := range orderServiceV2.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n📡 JSONService Endpoints (JSON encoding):")
+	for _, ep := range jsonService.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	log.Println("\n📡 BinaryService Endpoints (Binary encoding):")
+	for _, ep := range binaryService.Endpoints() {
 		log.Printf("  • %s → %s", ep.Name, ep.Subject)
 	}
 

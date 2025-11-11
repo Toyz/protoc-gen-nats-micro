@@ -9,6 +9,7 @@ import (
 
 	locationv1 "github.com/toyz/protoc-gen-nats-micro/gen/common/location/v1"
 	typesv1 "github.com/toyz/protoc-gen-nats-micro/gen/common/types/v1"
+	demov1 "github.com/toyz/protoc-gen-nats-micro/gen/demo/v1"
 	orderv1 "github.com/toyz/protoc-gen-nats-micro/gen/order/v1"
 	orderv2 "github.com/toyz/protoc-gen-nats-micro/gen/order/v2"
 	productv1 "github.com/toyz/protoc-gen-nats-micro/gen/product/v1"
@@ -211,5 +212,82 @@ func main() {
 		log.Printf("  - Order %s: $%d.00 (%v)", o.Id, o.Total.Units, o.Status)
 	}
 
-	log.Println("\n✅ All tests passed! Both v1 and v2 APIs working!")
+	// ========== Test Demo Services (JSON vs Binary Encoding) ==========
+	log.Println("\n\n========== Testing Demo Services (JSON vs Binary) ==========")
+
+	// Create JSON service client
+	jsonClient := demov1.NewJSONServiceNatsClient(nc)
+	log.Println("\n📡 JSONService Client Endpoints:")
+	for _, ep := range jsonClient.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	// Create Binary service client
+	binaryClient := demov1.NewBinaryServiceNatsClient(nc)
+	log.Println("\n📡 BinaryService Client Endpoints:")
+	for _, ep := range binaryClient.Endpoints() {
+		log.Printf("  • %s → %s", ep.Name, ep.Subject)
+	}
+
+	// Test JSON service Echo
+	log.Println("\n→ Testing JSON service Echo...")
+	jsonEchoResp, err := jsonClient.Echo(ctx, &demov1.EchoRequest{
+		Message:   "Hello JSON!",
+		Timestamp: time.Now().Unix(),
+	})
+	if err != nil {
+		log.Fatalf("JSON Echo failed: %v", err)
+	}
+	log.Printf("✓ JSON Echo Response:")
+	log.Printf("  Message:   %s", jsonEchoResp.Message)
+	log.Printf("  Encoding:  %s", jsonEchoResp.Encoding)
+	log.Printf("  Timestamp: %d", jsonEchoResp.Timestamp)
+
+	// Test Binary service Echo
+	log.Println("\n→ Testing Binary service Echo...")
+	binaryEchoResp, err := binaryClient.Echo(ctx, &demov1.EchoRequest{
+		Message:   "Hello Binary!",
+		Timestamp: time.Now().Unix(),
+	})
+	if err != nil {
+		log.Fatalf("Binary Echo failed: %v", err)
+	}
+	log.Printf("✓ Binary Echo Response:")
+	log.Printf("  Message:   %s", binaryEchoResp.Message)
+	log.Printf("  Encoding:  %s", binaryEchoResp.Encoding)
+	log.Printf("  Timestamp: %d", binaryEchoResp.Timestamp)
+
+	// Test JSON service GetUser
+	log.Println("\n→ Testing JSON service GetUser...")
+	jsonUserResp, err := jsonClient.GetUser(ctx, &demov1.GetUserRequest{
+		Id: "user-123",
+	})
+	if err != nil {
+		log.Fatalf("JSON GetUser failed: %v", err)
+	}
+	log.Printf("✓ JSON GetUser Response:")
+	log.Printf("  ID:       %s", jsonUserResp.User.Id)
+	log.Printf("  Name:     %s", jsonUserResp.User.Name)
+	log.Printf("  Email:    %s", jsonUserResp.User.Email)
+	log.Printf("  Roles:    %v", jsonUserResp.User.Roles)
+	log.Printf("  Metadata: %v", jsonUserResp.User.Metadata)
+
+	// Test Binary service GetUser
+	log.Println("\n→ Testing Binary service GetUser...")
+	binaryUserResp, err := binaryClient.GetUser(ctx, &demov1.GetUserRequest{
+		Id: "user-456",
+	})
+	if err != nil {
+		log.Fatalf("Binary GetUser failed: %v", err)
+	}
+	log.Printf("✓ Binary GetUser Response:")
+	log.Printf("  ID:       %s", binaryUserResp.User.Id)
+	log.Printf("  Name:     %s", binaryUserResp.User.Name)
+	log.Printf("  Email:    %s", binaryUserResp.User.Email)
+	log.Printf("  Roles:    %v", binaryUserResp.User.Roles)
+	log.Printf("  Metadata: %v", binaryUserResp.User.Metadata)
+
+	log.Println("\n✅ All tests passed! v1, v2, JSON and Binary APIs all working!")
+	log.Println("\n💡 Note: JSON encoding uses human-readable format (larger, slower)")
+	log.Println("   Binary encoding uses protobuf binary format (smaller, faster)")
 }

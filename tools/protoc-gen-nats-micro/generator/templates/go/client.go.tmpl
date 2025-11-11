@@ -15,10 +15,11 @@ type {{.Service.GoName}}NatsClientInterface interface {
 type {{.Service.GoName}}NatsClient struct {
   nc            *nats.Conn
   subjectPrefix string
+  useJSON       bool // Use JSON encoding instead of binary protobuf
 }
 
 // New{{.Service.GoName}}NatsClient creates a new NATS client for {{.Service.GoName}}.
-// The client sends requests over NATS using protobuf serialization.
+// The client sends requests over NATS using protobuf serialization (or JSON if configured).
 func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {{.Service.GoName}}NatsClientInterface {
   cfg := &natsClientConfig{
     subjectPrefix: "{{.Options.SubjectPrefix}}",
@@ -29,6 +30,7 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
   c := &{{.Service.GoName}}NatsClient{
     nc:            nc,
     subjectPrefix: cfg.subjectPrefix,
+    useJSON:       {{.Options.UseJSON}},
   }
   return c
 }
@@ -41,7 +43,13 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
   subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
 
-  data, err := proto.Marshal(req)
+  var data []byte
+  var err error
+  if c.useJSON {
+    data, err = protojson.Marshal(req)
+  } else {
+    data, err = proto.Marshal(req)
+  }
   if err != nil {
     return nil, err
   }
@@ -63,7 +71,12 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
   }
 
   var resp {{.Output.GoIdent.GoName}}
-  if err := proto.Unmarshal(msg.Data, &resp); err != nil {
+  if c.useJSON {
+    err = protojson.Unmarshal(msg.Data, &resp)
+  } else {
+    err = proto.Unmarshal(msg.Data, &resp)
+  }
+  if err != nil {
     return nil, err
   }
 

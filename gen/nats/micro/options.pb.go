@@ -42,7 +42,11 @@ type ServiceOptions struct {
 	Timeout *durationpb.Duration `protobuf:"bytes,6,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// Skip code generation for this service (optional, defaults to false)
 	// Set to true to exclude this service from NATS micro generation
-	Skip          bool `protobuf:"varint,7,opt,name=skip,proto3" json:"skip,omitempty"`
+	Skip bool `protobuf:"varint,7,opt,name=skip,proto3" json:"skip,omitempty"`
+	// Use JSON encoding instead of binary protobuf (optional, defaults to false)
+	// When true, messages are marshaled/unmarshaled using protojson (human-readable)
+	// When false (default), messages use binary protobuf encoding (more efficient)
+	Json          bool `protobuf:"varint,8,opt,name=json,proto3" json:"json,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -122,6 +126,13 @@ func (x *ServiceOptions) GetTimeout() *durationpb.Duration {
 func (x *ServiceOptions) GetSkip() bool {
 	if x != nil {
 		return x.Skip
+	}
+	return false
+}
+
+func (x *ServiceOptions) GetJson() bool {
+	if x != nil {
+		return x.Json
 	}
 	return false
 }
@@ -229,7 +240,7 @@ var File_nats_options_proto protoreflect.FileDescriptor
 const file_nats_options_proto_rawDesc = "" +
 	"\n" +
 	"\x12nats/options.proto\x12\n" +
-	"nats.micro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xd3\x02\n" +
+	"nats.micro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xe7\x02\n" +
 	"\x0eServiceOptions\x12%\n" +
 	"\x0esubject_prefix\x18\x01 \x01(\tR\rsubjectPrefix\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -237,7 +248,8 @@ const file_nats_options_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12D\n" +
 	"\bmetadata\x18\x05 \x03(\v2(.nats.micro.ServiceOptions.MetadataEntryR\bmetadata\x123\n" +
 	"\atimeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
-	"\x04skip\x18\a \x01(\bR\x04skip\x1a;\n" +
+	"\x04skip\x18\a \x01(\bR\x04skip\x12\x12\n" +
+	"\x04json\x18\b \x01(\bR\x04json\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x01\n" +

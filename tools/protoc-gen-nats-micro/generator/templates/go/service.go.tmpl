@@ -93,6 +93,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{
 		impl:           impl,
 		serviceTimeout: cfg.timeout,
+		useJSON:        {{.Options.UseJSON}},
 	}
 
 	// Map of endpoint names to their handlers
@@ -150,6 +151,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 type {{ToLowerFirst .Service.GoName}}Handlers struct {
 	impl           {{.Service.GoName}}Nats
 	serviceTimeout time.Duration // Default timeout for all endpoints
+	useJSON        bool          // Use JSON encoding instead of binary protobuf
 }
 
 {{range .Service.Methods -}}
@@ -172,9 +174,16 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 	}
 
 	var msg {{.Input.GoIdent.GoName}}
-	if err := proto.Unmarshal(req.Data(), &msg); err != nil {
-		req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
-		return
+	if h.useJSON {
+		if err := protojson.Unmarshal(req.Data(), &msg); err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode JSON request: %v", err), nil)
+			return
+		}
+	} else {
+		if err := proto.Unmarshal(req.Data(), &msg); err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
+			return
+		}
 	}
 
 	resp, err := h.impl.{{.GoName}}(ctx, &msg)
@@ -201,10 +210,19 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		return
 	}
 
-	data, err := proto.Marshal(resp)
-	if err != nil {
-		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode response: %v", err), nil)
-		return
+	var data []byte
+	if h.useJSON {
+		data, err = protojson.Marshal(resp)
+		if err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode JSON response: %v", err), nil)
+			return
+		}
+	} else {
+		data, err = proto.Marshal(resp)
+		if err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode response: %v", err), nil)
+			return
+		}
 	}
 
 	if err := req.Respond(data); err != nil {
