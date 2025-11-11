@@ -27,6 +27,7 @@ export interface I{{.Service.GoName}}NatsClient {
 export interface {{.Service.GoName}}ClientOptions {
   subjectPrefix?: string;
   timeout?: number; // milliseconds
+  clientInterceptors?: UnaryClientInterceptor[]; // Client-side interceptors
 }
 
 /**
@@ -37,6 +38,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   private readonly nc: NatsConnection;
   private readonly subjectPrefix: string;
   private readonly timeout?: number;
+  private readonly interceptor?: UnaryClientInterceptor;
 
   /**
    * Create a new NATS client for {{.Service.GoName}}
@@ -47,6 +49,11 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     this.nc = nc;
     this.subjectPrefix = options?.subjectPrefix || '{{.Options.SubjectPrefix}}';
     this.timeout = options?.timeout;
+    
+    // Chain client interceptors
+    this.interceptor = options?.clientInterceptors
+      ? chainUnaryClientInterceptors(options.clientInterceptors)
+      : undefined;
   }
 
 {{range .Service.Methods -}}
@@ -63,28 +70,45 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     request: pb.{{.Input.GoIdent.GoName}},
     opts?: RequestOptions
   ): Promise<pb.{{.Output.GoIdent.GoName}}> {
-    const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
+    const method = '{{.GoName}}';
     
-    // Serialize request
-    const data = pb.{{.Input.GoIdent.GoName}}.encode(request).finish();
-    
-    // Send request
-    const requestOpts: RequestOptions = {
-      ...opts,
-      timeout: opts?.timeout || this.timeout,
+    // Define the invoker function that performs the actual NATS call
+    const invoker: UnaryInvoker = async (m: string, req: any, reply: any) => {
+      const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
+      
+      // Serialize request
+      const data = pb.{{.Input.GoIdent.GoName}}.encode(req).finish();
+      
+      // Send request
+      const requestOpts: RequestOptions = {
+        ...opts,
+        timeout: opts?.timeout || this.timeout,
+      };
+      
+      const msg = await this.nc.request(subject, data, requestOpts);
+      
+      // Check for error response
+      const status = msg.headers?.get('Status');
+      if (status) {
+        const description = msg.headers?.get('Description') || 'Unknown error';
+        throw new {{$.Service.GoName}}Error(status, method, description, msg.data);
+      }
+      
+      // Deserialize response into reply object
+      const decoded = pb.{{.Output.GoIdent.GoName}}.decode(msg.data);
+      Object.assign(reply, decoded);
     };
+
+    const response = {} as pb.{{.Output.GoIdent.GoName}};
     
-    const msg = await this.nc.request(subject, data, requestOpts);
-    
-    // Check for error response
-    const status = msg.headers?.get('Status');
-    if (status) {
-      const description = msg.headers?.get('Description') || 'Unknown error';
-      throw new {{$.Service.GoName}}Error(status, '{{.GoName}}', description, msg.data);
+    // Execute through interceptor chain if configured
+    if (this.interceptor) {
+      await this.interceptor(method, request, response, invoker);
+    } else {
+      await invoker(method, request, response);
     }
     
-    // Deserialize response
-    return pb.{{.Output.GoIdent.GoName}}.decode(msg.data);
+    return response;
   }
 
 {{end -}}

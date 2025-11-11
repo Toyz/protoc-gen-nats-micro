@@ -1054,15 +1054,77 @@ task --list
 * run:gateway    Run REST gateway
 ```
 
+## Streaming Support
+
+### Current Status: Unary RPCs Only
+
+This plugin currently supports **unary request-response** operations only. Streaming (server streaming, client streaming, bidirectional streaming) is **not supported**.
+
+### Why Streaming Isn't Supported
+
+NATS micro is built on the **request-reply pattern** (1 request → 1 response), which is fundamentally different from gRPC's HTTP/2-based streaming model. While NATS itself supports streaming via JetStream, integrating gRPC-style streaming into the micro framework would require significant architectural changes that diverge from NATS' core design.
+
+### Alternatives to Streaming
+
+If you need streaming-like functionality, consider these NATS-native alternatives:
+
+**1. Pagination for Large Result Sets** (recommended):
+```protobuf
+message SearchProductsRequest {
+  string query = 1;
+  int32 page_size = 2;      // Results per page
+  string page_token = 3;     // Continuation token
+}
+
+message SearchProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2;  // Token for next page
+  int32 total_count = 3;
+}
+```
+
+**2. NATS JetStream for Event Streams**:
+
+For true streaming (real-time updates, event sourcing), use JetStream directly instead of trying to fit it into the micro request-reply pattern:
+
+```go
+// Publisher side
+js, _ := nc.JetStream()
+js.Publish("products.updates", data)
+
+// Consumer side
+sub, _ := js.Subscribe("products.updates", func(msg *nats.Msg) {
+    // Process stream message
+})
+```
+
+**3. Multiple Request-Reply Calls**:
+
+For sequential data retrieval, make multiple unary calls:
+```go
+for pageToken != "" {
+    resp, err := client.SearchProducts(ctx, &SearchRequest{
+        Query:     "laptop",
+        PageToken: pageToken,
+    })
+    // Process resp.Products
+    pageToken = resp.NextPageToken
+}
+```
+
+### Design Philosophy
+
+NATS micro embraces **simple, explicit request-reply semantics** rather than trying to replicate gRPC's streaming model. For complex streaming scenarios, use JetStream or pub/sub patterns directly - they're more powerful and NATS-native than trying to shoehorn gRPC streaming into micro.
+
 ## Contributing
 
 Contributions welcome. Areas of interest:
 
-- Additional language templates (Rust, TypeScript, Python)
-- Streaming support (bidirectional, server streaming)
+- Additional language templates (Rust, Python)
 - Enhanced error handling patterns
 - Observability integrations (OpenTelemetry)
 - Performance benchmarks vs gRPC
+- Interceptor examples (auth, retry, circuit breaking)
 
 ## Related Projects
 

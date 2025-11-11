@@ -5,3 +5,12 @@ import { ServiceClient, Service, ServiceConfig, ServiceError } from '@nats-io/se
 {{- range .File.Services}}
 import * as pb from './{{$.File.GeneratedFilenamePrefix}}.pb';
 {{- end}}
+import {
+  UnaryServerInfo,
+  UnaryHandler,
+  UnaryServerInterceptor,
+  UnaryInvoker,
+  UnaryClientInterceptor,
+  chainUnaryServerInterceptors,
+  chainUnaryClientInterceptors,
+} from './{{$.File.GeneratedFilenamePrefix}}/shared_nats.pb';

@@ -1,3 +1,109 @@
 {{- /* Shared types for all services in a proto file */ -}}
 // This file contains shared types used by all NATS microservices in this proto file
 // It is generated once per proto file to avoid duplication when multiple services exist
+
+/**
+ * UnaryServerInfo contains information about a unary RPC
+ */
+export interface UnaryServerInfo {
+  service: string;  // Service name
+  method: string;   // Method name
+  subject: string;  // NATS subject
+}
+
+/**
+ * UnaryHandler is the actual handler function to be called
+ */
+export type UnaryHandler = (request: any) => Promise<any>;
+
+/**
+ * UnaryServerInterceptor is middleware that can intercept unary RPC calls on the server
+ * It receives the request, RPC info, and the handler to call.
+ * The interceptor can inspect/modify the request, handle auth, logging, etc.
+ * It must call handler(req) to continue the chain or return early.
+ */
+export type UnaryServerInterceptor = (
+  request: any,
+  info: UnaryServerInfo,
+  handler: UnaryHandler
+) => Promise<any>;
+
+/**
+ * UnaryInvoker is called by a UnaryClientInterceptor to complete the RPC
+ */
+export type UnaryInvoker = (method: string, request: any, reply: any) => Promise<void>;
+
+/**
+ * UnaryClientInterceptor is middleware that can intercept unary RPC calls on the client
+ * It receives the method name, request, reply, and invoker.
+ * The interceptor can inspect/modify requests, handle retries, logging, etc.
+ * It must call invoker(method, req, reply) to continue the chain.
+ */
+export type UnaryClientInterceptor = (
+  method: string,
+  request: any,
+  reply: any,
+  invoker: UnaryInvoker
+) => Promise<void>;
+
+/**
+ * Chain multiple server interceptors into a single interceptor
+ * Interceptors are executed in the order they are provided
+ */
+export function chainUnaryServerInterceptors(
+  interceptors: UnaryServerInterceptor[]
+): UnaryServerInterceptor | undefined {
+  const n = interceptors.length;
+  
+  if (n === 0) {
+    return undefined;
+  }
+  
+  if (n === 1) {
+    return interceptors[0];
+  }
+  
+  return async (request: any, info: UnaryServerInfo, handler: UnaryHandler): Promise<any> => {
+    // Build chain from last to first
+    let chainedHandler = handler;
+    for (let i = n - 1; i >= 0; i--) {
+      const interceptor = interceptors[i];
+      const nextHandler = chainedHandler;
+      chainedHandler = async (currentReq: any) => {
+        return interceptor(currentReq, info, nextHandler);
+      };
+    }
+    return chainedHandler(request);
+  };
+}
+
+/**
+ * Chain multiple client interceptors into a single interceptor
+ * Interceptors are executed in the order they are provided
+ */
+export function chainUnaryClientInterceptors(
+  interceptors: UnaryClientInterceptor[]
+): UnaryClientInterceptor | undefined {
+  const n = interceptors.length;
+  
+  if (n === 0) {
+    return undefined;
+  }
+  
+  if (n === 1) {
+    return interceptors[0];
+  }
+  
+  return async (method: string, request: any, reply: any, invoker: UnaryInvoker): Promise<void> => {
+    // Build chain from last to first
+    let chainedInvoker = invoker;
+    for (let i = n - 1; i >= 0; i--) {
+      const interceptor = interceptors[i];
+      const nextInvoker = chainedInvoker;
+      chainedInvoker = async (currentMethod: string, currentReq: any, currentReply: any) => {
+        return interceptor(currentMethod, currentReq, currentReply, nextInvoker);
+      };
+    }
+    return chainedInvoker(method, request, reply);
+  };
+}

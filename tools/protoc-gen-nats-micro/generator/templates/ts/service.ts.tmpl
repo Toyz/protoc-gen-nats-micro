@@ -26,6 +26,7 @@ export interface {{.Service.GoName}}RegisterOptions {
   subjectPrefix?: string;
   timeout?: number; // milliseconds (0 = no timeout)
   metadata?: Record<string, string>;
+  serverInterceptors?: UnaryServerInterceptor[]; // Server-side interceptors
 }
 
 /**
@@ -121,8 +122,13 @@ export async function register{{.Service.GoName}}Handlers(
   // Create service
   const service = await nc.services.add(config);
 
+  // Chain server interceptors
+  const chainedInterceptor = options?.serverInterceptors 
+    ? chainUnaryServerInterceptors(options.serverInterceptors)
+    : undefined;
+
   // Create handlers
-  const handlers = new {{.Service.GoName}}Handlers(impl, timeout);
+  const handlers = new {{.Service.GoName}}Handlers(impl, timeout, chainedInterceptor);
 
   // Add endpoints
   const group = subjectPrefix ? service.addGroup(subjectPrefix) : service;
@@ -152,7 +158,8 @@ export async function register{{.Service.GoName}}Handlers(
 class {{.Service.GoName}}Handlers {
   constructor(
     private readonly impl: I{{.Service.GoName}}Nats,
-    private readonly serviceTimeout: number // Default timeout for all endpoints (milliseconds)
+    private readonly serviceTimeout: number, // Default timeout for all endpoints (milliseconds)
+    private readonly interceptor?: UnaryServerInterceptor // Chained interceptors
   ) {}
 
 {{range .Service.Methods -}}
@@ -170,17 +177,31 @@ class {{.Service.GoName}}Handlers {
       // Determine effective timeout: endpoint-specific timeout overrides service timeout
       const timeout = {{if gt $endpointOpts.Timeout.Nanoseconds 0}}{{$endpointOpts.Timeout.Milliseconds}}{{else}}this.serviceTimeout{{end}};
 
-      // Call implementation with timeout if configured
+      // Define the handler function
+      const handler = async (req: any): Promise<any> => {
+        if (timeout > 0) {
+          return Promise.race([
+            this.impl.{{ToLowerFirst .GoName}}(req),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Request timeout')), timeout)
+            ),
+          ]);
+        } else {
+          return this.impl.{{ToLowerFirst .GoName}}(req);
+        }
+      };
+
+      // Execute through interceptor chain if configured
       let response: pb.{{.Output.GoIdent.GoName}};
-      if (timeout > 0) {
-        response = await Promise.race([
-          this.impl.{{ToLowerFirst .GoName}}(request),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Request timeout')), timeout)
-          ),
-        ]);
+      if (this.interceptor) {
+        const info: UnaryServerInfo = {
+          service: '{{$.Service.GoName}}',
+          method: '{{.GoName}}',
+          subject: '{{$.Options.SubjectPrefix}}.{{ToSnakeCase .GoName}}',
+        };
+        response = await this.interceptor(request, info, handler);
       } else {
-        response = await this.impl.{{ToLowerFirst .GoName}}(request);
+        response = await handler(request);
       }
 
       // Encode and send response
