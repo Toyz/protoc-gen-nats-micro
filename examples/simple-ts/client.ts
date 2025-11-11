@@ -15,8 +15,8 @@ import * as pb from '../../gen/product/v1/service';
 import type { UnaryClientInterceptor } from '../../gen/product/v1/service/shared_nats.pb';
 import { ProductServiceNatsClient } from '../../gen/product/v1/service_nats.pb';
 
-// Client logging interceptor - also demonstrates adding headers
-const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request, reply, invoker, hdrs) => {
+// Client logging interceptor - demonstrates adding headers and reading response headers
+const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request, reply, invoker, hdrs, responseHeaders) => {
   console.log(`→ [Client] Calling ${method}`);
   const start = Date.now();
 
@@ -26,7 +26,16 @@ const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request,
   customHeaders.set('X-Client-Version', '1.0.0');
 
   try {
-    await invoker(method, request, reply, customHeaders);
+    await invoker(method, request, reply, customHeaders, responseHeaders);
+
+    // Read response headers from server
+    if (responseHeaders?.value) {
+      const serverVer = responseHeaders.value.get('X-Server-Version');
+      if (serverVer) {
+        console.log(`  [Response Headers] Server-Version: ${serverVer}`);
+      }
+    }
+
     const duration = Date.now() - start;
     console.log(`✓ [Client] ${method} completed in ${duration}ms`);
   } catch (error) {
@@ -34,9 +43,7 @@ const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request,
     console.error(`✗ [Client] ${method} failed after ${duration}ms:`, error);
     throw error;
   }
-};
-
-async function main() {
+}; async function main() {
   // Connect to NATS
   const nc = await connect({ servers: 'nats://localhost:4222' });
   console.log('✓ Connected to NATS\n');

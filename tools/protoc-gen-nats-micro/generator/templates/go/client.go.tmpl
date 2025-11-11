@@ -52,8 +52,15 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
   method := "{{.GoName}}"
   
+  // Pointer to store response headers - stored in context so invoker can update it
+  responseHeadersPtr := &nats.Header{}
+  
+  // Add the response headers pointer to context so invoker can populate it
+  // Interceptors can then read the headers from the same context
+  ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
+  
   // Define the invoker function that performs the actual NATS call
-  invoker := func(ctx context.Context, method string, request, reply interface{}) error {
+  invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
     subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
     
     // Marshal request
@@ -75,20 +82,25 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 
     // Extract outgoing headers from context and attach to NATS message
     var msg *nats.Msg
-    if headers := OutgoingHeaders(ctx); headers != nil {
-      msg, err = c.nc.RequestMsgWithContext(ctx, &nats.Msg{
+    if headers := OutgoingHeaders(invokerCtx); headers != nil {
+      msg, err = c.nc.RequestMsgWithContext(invokerCtx, &nats.Msg{
         Subject: subject,
         Data:    data,
         Header:  headers,
       })
     } else {
-      msg, err = c.nc.RequestWithContext(ctx, subject, data)
+      msg, err = c.nc.RequestWithContext(invokerCtx, subject, data)
     }
     if err != nil {
       return err
     }
 
-    // Check if this is an error response from the service
+		// Store response headers in the pointer from context
+		if msg.Header != nil && len(msg.Header) > 0 {
+			if headersPtr, ok := invokerCtx.Value(responseHeadersKey).(*nats.Header); ok && headersPtr != nil {
+				*headersPtr = msg.Header
+			}
+		}    // Check if this is an error response from the service
     if msg.Header.Get("Status") != "" {
       code := msg.Header.Get("Status")
       description := msg.Header.Get("Description")

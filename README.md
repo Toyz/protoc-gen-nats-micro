@@ -795,6 +795,106 @@ clientV2 := orderv2.NewOrderServiceNatsClient(nc)
 
 Clients automatically target the correct version based on the imported package.
 
+### Interceptors and Middleware
+
+Interceptors enable cross-cutting concerns like logging, authentication, metrics, and tracing without modifying service implementations.
+
+#### Server-Side Interceptors
+
+**Logging interceptor with bidirectional headers:**
+```go
+func loggingInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
+    start := time.Now()
+    
+    // Read incoming request headers
+    if headers := productv1.IncomingHeaders(ctx); headers != nil {
+        if traceID, ok := headers["X-Trace-Id"]; ok && len(traceID) > 0 {
+            log.Printf("[%s] Trace-ID: %s", info.Method, traceID[0])
+        }
+    }
+    
+    // Set response headers that will be sent back to client
+    responseHeaders := nats.Header{}
+    responseHeaders.Set("X-Server-Version", "1.0.0")
+    responseHeaders.Set("X-Request-Id", generateRequestID())
+    productv1.SetResponseHeaders(ctx, responseHeaders)
+    
+    // Call the actual handler
+    resp, err := handler(ctx, req)
+    
+    duration := time.Since(start)
+    log.Printf("[%s] completed in %v", info.Method, duration)
+    
+    return resp, err
+}
+
+// Register with interceptor
+productv1.RegisterProductServiceHandlers(nc, impl,
+    productv1.WithServerInterceptor(loggingInterceptor),
+)
+```
+
+**Chaining multiple interceptors:**
+```go
+productv1.RegisterProductServiceHandlers(nc, impl,
+    productv1.WithServerInterceptor(loggingInterceptor),
+    productv1.WithServerInterceptor(metricsInterceptor),
+    productv1.WithServerInterceptor(authInterceptor),
+)
+// Execution order: auth -> metrics -> logging -> handler
+```
+
+#### Client-Side Interceptors
+
+**Client interceptor with request/response headers:**
+```go
+func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
+    // Add request headers
+    headers := nats.Header{}
+    headers.Set("X-Trace-Id", generateTraceID())
+    headers.Set("X-Client-Version", "1.0.0")
+    ctx = productv1.WithOutgoingHeaders(ctx, headers)
+    
+    // Make the call
+    err := invoker(ctx, method, req, reply)
+    
+    // Read response headers
+    if respHeaders := productv1.ResponseHeaders(ctx); respHeaders != nil {
+        if serverVer, ok := respHeaders["X-Server-Version"]; ok && len(serverVer) > 0 {
+            log.Printf("Server version: %s", serverVer[0])
+        }
+    }
+    
+    return err
+}
+
+// Create client with interceptor
+client := productv1.NewProductServiceNatsClient(nc,
+    productv1.WithClientInterceptor(clientLoggingInterceptor),
+)
+```
+
+#### Bidirectional Headers
+
+The plugin supports full bidirectional header propagation:
+
+**Request headers** (client → server):
+- Client sets via `WithOutgoingHeaders(ctx, headers)`
+- Server reads via `IncomingHeaders(ctx)`
+
+**Response headers** (server → client):
+- Server sets via `SetResponseHeaders(ctx, headers)`
+- Client reads via `ResponseHeaders(ctx)`
+
+Common use cases:
+- **Distributed tracing**: Propagate trace IDs across services
+- **Authentication**: Pass JWT tokens in request headers
+- **Correlation**: Track requests with unique IDs in both directions
+- **Versioning**: Communicate API versions between client and server
+- **Metadata**: Send operational context (regions, tenants, etc.)
+
+The header mechanism uses context-based mutable pointers internally, allowing interceptors to set headers that are automatically included in NATS messages without requiring interceptor signature changes.
+
 ## Architecture
 
 ### Code Generation Pipeline

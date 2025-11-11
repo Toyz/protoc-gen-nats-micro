@@ -186,6 +186,10 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		ctx = WithIncomingHeaders(ctx, req.Headers())
 	}
 
+	// Initialize outgoing headers pointer in context so interceptors can set response headers
+	outgoingHeadersPtr := &nats.Header{}
+	ctx = context.WithValue(ctx, outgoingHeadersKey, outgoingHeadersPtr)
+
 	var msg {{.Input.GoIdent.GoName}}
 	if h.useJSON {
 		if err := protojson.Unmarshal(req.Data(), &msg); err != nil {
@@ -266,9 +270,23 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		}
 	}
 
-	if err := req.Respond(data); err != nil {
-		// Log response send failure (client may have disconnected)
-		fmt.Fprintf(os.Stderr, "failed to send response for {{.GoName}}: %v\n", err)
+	// Check if context has outgoing headers set by interceptors
+	// Read from the pointer that was initialized at the start
+	var outgoingHeaders nats.Header
+	if headersPtr, ok := ctx.Value(outgoingHeadersKey).(*nats.Header); ok && headersPtr != nil {
+		outgoingHeaders = *headersPtr
+	}
+	if len(outgoingHeaders) > 0 {
+		// Send response with headers using micro.WithHeaders
+		// Convert nats.Header to micro.Headers (they are the same underlying type)
+		if err := req.Respond(data, micro.WithHeaders(micro.Headers(outgoingHeaders))); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to send response for {{.GoName}}: %v\n", err)
+		}
+	} else {
+		// Send response without headers
+		if err := req.Respond(data); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to send response for {{.GoName}}: %v\n", err)
+		}
 	}
 }
 {{end}}

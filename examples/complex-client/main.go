@@ -15,7 +15,7 @@ import (
 	productv1 "github.com/toyz/protoc-gen-nats-micro/gen/product/v1"
 )
 
-// Example client interceptor for request logging - demonstrates sending headers
+// Example client interceptor for request logging - demonstrates sending and reading headers
 func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
 	log.Printf("→ [Client] Calling %s", method)
 	start := time.Now()
@@ -29,6 +29,16 @@ func clientLoggingInterceptor(ctx context.Context, method string, req, reply int
 	ctx = productv1.WithOutgoingHeaders(ctx, headers)
 	
 	err := invoker(ctx, method, req, reply)
+	
+	// Read response headers from context
+	if respHeaders := productv1.ResponseHeaders(ctx); respHeaders != nil {
+		if serverVer, ok := respHeaders["X-Server-Version"]; ok && len(serverVer) > 0 {
+			log.Printf("  [Response Headers] Server-Version: %s", serverVer[0])
+		}
+		if reqId, ok := respHeaders["X-Request-Id"]; ok && len(reqId) > 0 {
+			log.Printf("  [Response Headers] Request-ID: %s", reqId[0])
+		}
+	}
 	
 	duration := time.Since(start)
 	if err != nil {

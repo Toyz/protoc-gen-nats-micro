@@ -16,6 +16,7 @@ type contextKey int
 const (
 	incomingHeadersKey contextKey = iota
 	outgoingHeadersKey
+	responseHeadersKey
 )
 
 // IncomingHeaders extracts incoming NATS headers from the context (server-side)
@@ -45,6 +46,33 @@ func WithIncomingHeaders(ctx context.Context, headers micro.Headers) context.Con
 // Example: ctx := WithOutgoingHeaders(ctx, nats.Header{"Authorization": []string{"Bearer token"}})
 func WithOutgoingHeaders(ctx context.Context, headers nats.Header) context.Context {
 	return context.WithValue(ctx, outgoingHeadersKey, headers)
+}
+
+// ResponseHeaders extracts response headers from the context (client-side, after call)
+// Returns nil if no response headers are present
+func ResponseHeaders(ctx context.Context) nats.Header {
+	// Response headers are stored as a pointer in the context
+	// The invoker updates the pointer, allowing interceptors to read the headers
+	if headersPtr, ok := ctx.Value(responseHeadersKey).(*nats.Header); ok && headersPtr != nil {
+		return *headersPtr
+	}
+	return nil
+}
+
+// WithResponseHeaders adds response headers to the context (used internally by client)
+func WithResponseHeaders(ctx context.Context, headers nats.Header) context.Context {
+	return context.WithValue(ctx, responseHeadersKey, headers)
+}
+
+// SetResponseHeaders allows server interceptors/handlers to add response headers
+// These will be sent back to the client with the response
+// Example: SetResponseHeaders(ctx, nats.Header{"X-Server-Version": []string{"1.0.0"}})
+// Note: This modifies a mutable pointer stored in the context, so you don't need to capture the return value
+func SetResponseHeaders(ctx context.Context, headers nats.Header) {
+	// Get the pointer to response headers from context and update it
+	if headersPtr, ok := ctx.Value(outgoingHeadersKey).(*nats.Header); ok && headersPtr != nil {
+		*headersPtr = headers
+	}
 }
 
 // UnaryServerInfo contains information about a unary RPC
