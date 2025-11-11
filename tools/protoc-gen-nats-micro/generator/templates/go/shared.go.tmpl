@@ -10,17 +10,43 @@ const (
 	ErrCodeUnavailable      = "UNAVAILABLE"
 )
 
+// UnaryServerInfo contains information about a unary RPC
+type UnaryServerInfo struct {
+	Service     string // Service name
+	Method      string // Method name
+	Subject     string // NATS subject
+}
+
+// UnaryHandler is the actual handler function to be called
+type UnaryHandler func(ctx context.Context, req interface{}) (interface{}, error)
+
+// UnaryServerInterceptor is middleware that can intercept unary RPC calls on the server
+// It receives the context, request, RPC info, and the handler to call.
+// The interceptor can inspect/modify the request, handle auth, logging, etc.
+// It must call handler(ctx, req) to continue the chain or return early.
+type UnaryServerInterceptor func(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error)
+
+// UnaryInvoker is called by a UnaryClientInterceptor to complete the RPC
+type UnaryInvoker func(ctx context.Context, method string, req, reply interface{}) error
+
+// UnaryClientInterceptor is middleware that can intercept unary RPC calls on the client
+// It receives the context, method name, request, reply, and invoker.
+// The interceptor can inspect/modify requests, handle retries, logging, etc.
+// It must call invoker(ctx, method, req, reply) to continue the chain.
+type UnaryClientInterceptor func(ctx context.Context, method string, req, reply interface{}, invoker UnaryInvoker) error
+
 // registerConfig holds configuration for service registration
 type registerConfig struct {
-	name          string
-	version       string
-	description   string
-	subjectPrefix string
-	timeout       time.Duration
-	metadata      map[string]string
-	statsHandler  micro.StatsHandler
-	doneHandler   micro.DoneHandler
-	errorHandler  micro.ErrHandler
+	name               string
+	version            string
+	description        string
+	subjectPrefix      string
+	timeout            time.Duration
+	metadata           map[string]string
+	statsHandler       micro.StatsHandler
+	doneHandler        micro.DoneHandler
+	errorHandler       micro.ErrHandler
+	serverInterceptors []UnaryServerInterceptor
 }
 
 // RegisterOption configures the service registration
@@ -88,9 +114,45 @@ func WithErrorHandler(handler micro.ErrHandler) RegisterOption {
 	return func(c *registerConfig) { c.errorHandler = handler }
 }
 
+// WithServerInterceptor adds a unary server interceptor to the service.
+// Interceptors are executed in the order they are added.
+// Use for cross-cutting concerns like logging, auth, metrics, tracing.
+func WithServerInterceptor(interceptor UnaryServerInterceptor) RegisterOption {
+	return func(c *registerConfig) {
+		c.serverInterceptors = append(c.serverInterceptors, interceptor)
+	}
+}
+
+// chainUnaryServerInterceptors creates a single interceptor that chains multiple interceptors
+func chainUnaryServerInterceptors(interceptors []UnaryServerInterceptor) UnaryServerInterceptor {
+	n := len(interceptors)
+	
+	if n == 0 {
+		return nil
+	}
+	
+	if n == 1 {
+		return interceptors[0]
+	}
+	
+	return func(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error) {
+		// Build chain from last to first
+		chainedHandler := handler
+		for i := n - 1; i >= 0; i-- {
+			interceptor := interceptors[i]
+			nextHandler := chainedHandler
+			chainedHandler = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+				return interceptor(currentCtx, currentReq, info, nextHandler)
+			}
+		}
+		return chainedHandler(ctx, req)
+	}
+}
+
 // natsClientConfig holds configuration for NATS clients
 type natsClientConfig struct {
-	subjectPrefix string
+	subjectPrefix      string
+	clientInterceptors []UnaryClientInterceptor
 }
 
 // NatsClientOption is a generic client configuration option
@@ -112,5 +174,40 @@ func WithNatsClientSubjectPrefix(prefix string) NatsClientOption {
 	return natsClientOptionFunc(func(c *natsClientConfig) {
 		c.subjectPrefix = prefix
 	})
+}
+
+// WithClientInterceptor adds a unary client interceptor.
+// Interceptors are executed in the order they are added.
+// Use for cross-cutting concerns like logging, retries, circuit breaking.
+func WithClientInterceptor(interceptor UnaryClientInterceptor) NatsClientOption {
+	return natsClientOptionFunc(func(c *natsClientConfig) {
+		c.clientInterceptors = append(c.clientInterceptors, interceptor)
+	})
+}
+
+// chainUnaryClientInterceptors creates a single interceptor that chains multiple interceptors
+func chainUnaryClientInterceptors(interceptors []UnaryClientInterceptor) UnaryClientInterceptor {
+	n := len(interceptors)
+	
+	if n == 0 {
+		return nil
+	}
+	
+	if n == 1 {
+		return interceptors[0]
+	}
+	
+	return func(ctx context.Context, method string, req, reply interface{}, invoker UnaryInvoker) error {
+		// Build chain from last to first
+		chainedInvoker := invoker
+		for i := n - 1; i >= 0; i-- {
+			interceptor := interceptors[i]
+			nextInvoker := chainedInvoker
+			chainedInvoker = func(currentCtx context.Context, currentMethod string, currentReq, currentReply interface{}) error {
+				return interceptor(currentCtx, currentMethod, currentReq, currentReply, nextInvoker)
+			}
+		}
+		return chainedInvoker(ctx, method, req, reply)
+	}
 }
 

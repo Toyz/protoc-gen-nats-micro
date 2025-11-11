@@ -314,6 +314,42 @@ func (s *binaryDemoService) GetUser(ctx context.Context, req *demov1.GetUserRequ
 	}, nil
 }
 
+// Example server interceptors
+
+// Product service interceptors
+func productLoggingInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	log.Printf("→ [%s.%s] Request started", info.Service, info.Method)
+
+	resp, err := handler(ctx, req)
+
+	duration := time.Since(start)
+	if err != nil {
+		log.Printf("✗ [%s.%s] Request failed after %v: %v", info.Service, info.Method, duration, err)
+	} else {
+		log.Printf("✓ [%s.%s] Request completed in %v", info.Service, info.Method, duration)
+	}
+
+	return resp, err
+}
+
+func productMetricsInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+
+	resp, err := handler(ctx, req)
+
+	duration := time.Since(start)
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+
+	log.Printf("📊 [METRICS] service=%s method=%s status=%s duration_ms=%d",
+		info.Service, info.Method, status, duration.Milliseconds())
+
+	return resp, err
+}
+
 func main() {
 	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
@@ -324,12 +360,16 @@ func main() {
 	log.Println("✓ Connected to NATS")
 
 	// Register product service (subject prefix "api.v1" read from proto!)
+	// with logging and metrics interceptors
 	productSvc := &productService{products: make(map[string]*productv1.Product)}
-	productService, err := productv1.RegisterProductServiceHandlers(nc, productSvc)
+	productService, err := productv1.RegisterProductServiceHandlers(nc, productSvc,
+		productv1.WithServerInterceptor(productLoggingInterceptor),
+		productv1.WithServerInterceptor(productMetricsInterceptor),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println("✓ Registered ProductService")
+	log.Println("✓ Registered ProductService (with logging + metrics interceptors)")
 
 	// Register order service v1 (subject prefix "api.v1" read from proto!)
 	orderSvc := &orderService{
@@ -403,4 +443,3 @@ func main() {
 
 	log.Println("\n✓ Shutting down...")
 }
-

@@ -15,6 +15,23 @@ import (
 	productv1 "github.com/toyz/protoc-gen-nats-micro/gen/product/v1"
 )
 
+// Example client interceptor for request logging
+func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
+	log.Printf("→ [Client] Calling %s", method)
+	start := time.Now()
+	
+	err := invoker(ctx, method, req, reply)
+	
+	duration := time.Since(start)
+	if err != nil {
+		log.Printf("✗ [Client] %s failed after %v: %v", method, duration, err)
+	} else {
+		log.Printf("✓ [Client] %s completed in %v", method, duration)
+	}
+	
+	return err
+}
+
 func main() {
 	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
@@ -25,8 +42,28 @@ func main() {
 	log.Println("✓ Connected to NATS")
 
 	// Create clients (subject prefixes read from proto!)
-	productClient := productv1.NewProductServiceNatsClient(nc)
-	orderClient := orderv1.NewOrderServiceNatsClient(nc)
+	// with client logging interceptor
+	productClient := productv1.NewProductServiceNatsClient(nc,
+		productv1.WithClientInterceptor(clientLoggingInterceptor),
+	)
+	
+	// Order client also with interceptor
+	orderClientLoggingInterceptor := func(ctx context.Context, method string, req, reply interface{}, invoker orderv1.UnaryInvoker) error {
+		log.Printf("→ [OrderClient] Calling %s", method)
+		start := time.Now()
+		err := invoker(ctx, method, req, reply)
+		duration := time.Since(start)
+		if err != nil {
+			log.Printf("✗ [OrderClient] %s failed after %v: %v", method, duration, err)
+		} else {
+			log.Printf("✓ [OrderClient] %s completed in %v", method, duration)
+		}
+		return err
+	}
+	
+	orderClient := orderv1.NewOrderServiceNatsClient(nc,
+		orderv1.WithClientInterceptor(orderClientLoggingInterceptor),
+	)
 
 	// Print client endpoints
 	log.Println("\n📡 ProductService Client Endpoints:")

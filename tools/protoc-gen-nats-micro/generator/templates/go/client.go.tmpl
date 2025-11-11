@@ -15,7 +15,8 @@ type {{.Service.GoName}}NatsClientInterface interface {
 type {{.Service.GoName}}NatsClient struct {
   nc            *nats.Conn
   subjectPrefix string
-  useJSON       bool // Use JSON encoding instead of binary protobuf
+  useJSON       bool                       // Use JSON encoding instead of binary protobuf
+  interceptor   UnaryClientInterceptor     // Chained interceptors
 }
 
 // New{{.Service.GoName}}NatsClient creates a new NATS client for {{.Service.GoName}}.
@@ -27,10 +28,18 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
   for _, opt := range opts {
     opt.applyNatsClientOption(cfg)
   }
+  
+  // Chain client interceptors
+  var chainedInterceptor UnaryClientInterceptor
+  if len(cfg.clientInterceptors) > 0 {
+    chainedInterceptor = chainUnaryClientInterceptors(cfg.clientInterceptors)
+  }
+  
   c := &{{.Service.GoName}}NatsClient{
     nc:            nc,
     subjectPrefix: cfg.subjectPrefix,
     useJSON:       {{.Options.UseJSON}},
+    interceptor:   chainedInterceptor,
   }
   return c
 }
@@ -41,41 +50,69 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
 // {{.GoName}} sends a {{.GoName}} request to the service via NATS.
 // Returns an error if the request fails or the service returns an error.
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
-  subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
-
-  var data []byte
-  var err error
-  if c.useJSON {
-    data, err = protojson.Marshal(req)
-  } else {
-    data, err = proto.Marshal(req)
-  }
-  if err != nil {
-    return nil, err
-  }
-
-  msg, err := c.nc.RequestWithContext(ctx, subject, data)
-  if err != nil {
-    return nil, err
-  }
-
-  // Check if this is an error response from the service
-  if msg.Header.Get("Status") != "" {
-    code := msg.Header.Get("Status")
-    description := msg.Header.Get("Description")
-    return nil, &{{$.Service.GoName}}Error{
-      Code:    code,
-      Method:  "{{.GoName}}",
-      Message: description,
+  method := "{{.GoName}}"
+  
+  // Define the invoker function that performs the actual NATS call
+  invoker := func(ctx context.Context, method string, request, reply interface{}) error {
+    subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
+    
+    // Marshal request
+    typedReq, ok := request.(*{{.Input.GoIdent.GoName}})
+    if !ok {
+      return fmt.Errorf("invalid request type")
     }
+    
+    var data []byte
+    var err error
+    if c.useJSON {
+      data, err = protojson.Marshal(typedReq)
+    } else {
+      data, err = proto.Marshal(typedReq)
+    }
+    if err != nil {
+      return err
+    }
+
+    msg, err := c.nc.RequestWithContext(ctx, subject, data)
+    if err != nil {
+      return err
+    }
+
+    // Check if this is an error response from the service
+    if msg.Header.Get("Status") != "" {
+      code := msg.Header.Get("Status")
+      description := msg.Header.Get("Description")
+      return &{{$.Service.GoName}}Error{
+        Code:    code,
+        Method:  method,
+        Message: description,
+      }
+    }
+
+    // Unmarshal response
+    typedReply, ok := reply.(*{{.Output.GoIdent.GoName}})
+    if !ok {
+      return fmt.Errorf("invalid reply type")
+    }
+    
+    if c.useJSON {
+      err = protojson.Unmarshal(msg.Data, typedReply)
+    } else {
+      err = proto.Unmarshal(msg.Data, typedReply)
+    }
+    return err
   }
 
   var resp {{.Output.GoIdent.GoName}}
-  if c.useJSON {
-    err = protojson.Unmarshal(msg.Data, &resp)
+  
+  // Execute through interceptor chain if configured
+  var err error
+  if c.interceptor != nil {
+    err = c.interceptor(ctx, method, req, &resp, invoker)
   } else {
-    err = proto.Unmarshal(msg.Data, &resp)
+    err = invoker(ctx, method, req, &resp)
   }
+  
   if err != nil {
     return nil, err
   }

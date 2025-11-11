@@ -90,10 +90,17 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		return nil, fmt.Errorf("failed to add service: %w", err)
 	}
 
+	// Chain server interceptors
+	var chainedInterceptor UnaryServerInterceptor
+	if len(cfg.serverInterceptors) > 0 {
+		chainedInterceptor = chainUnaryServerInterceptors(cfg.serverInterceptors)
+	}
+
 	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{
 		impl:           impl,
 		serviceTimeout: cfg.timeout,
 		useJSON:        {{.Options.UseJSON}},
+		interceptor:    chainedInterceptor,
 	}
 
 	// Map of endpoint names to their handlers
@@ -150,8 +157,9 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 // {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
 type {{ToLowerFirst .Service.GoName}}Handlers struct {
 	impl           {{.Service.GoName}}Nats
-	serviceTimeout time.Duration // Default timeout for all endpoints
-	useJSON        bool          // Use JSON encoding instead of binary protobuf
+	serviceTimeout time.Duration              // Default timeout for all endpoints
+	useJSON        bool                       // Use JSON encoding instead of binary protobuf
+	interceptor    UnaryServerInterceptor     // Chained interceptors
 }
 
 {{range .Service.Methods -}}
@@ -186,7 +194,28 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		}
 	}
 
-	resp, err := h.impl.{{.GoName}}(ctx, &msg)
+	// Define the handler function
+	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+		typedReq, ok := request.(*{{.Input.GoIdent.GoName}})
+		if !ok {
+			return nil, fmt.Errorf("invalid request type")
+		}
+		return h.impl.{{.GoName}}(ctx, typedReq)
+	}
+
+	// Execute through interceptor chain if configured
+	var resp interface{}
+	var err error
+	if h.interceptor != nil {
+		info := &UnaryServerInfo{
+			Service: "{{$.Service.GoName}}",
+			Method:  "{{.GoName}}",
+			Subject: "{{$.Options.SubjectPrefix}}.{{ToSnakeCase .GoName}}",
+		}
+		resp, err = h.interceptor(ctx, &msg, info, handler)
+	} else {
+		resp, err = handler(ctx, &msg)
+	}
 	if err != nil {
 		// Check if error implements custom status code/message/data methods
 		code := {{$.Service.GoName}}ErrCodeInternal
@@ -210,15 +239,22 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		return
 	}
 
+	// Type assert response back to the expected type
+	typedResp, ok := resp.(*{{.Output.GoIdent.GoName}})
+	if !ok {
+		req.Error({{$.Service.GoName}}ErrCodeInternal, "invalid response type from handler", nil)
+		return
+	}
+
 	var data []byte
 	if h.useJSON {
-		data, err = protojson.Marshal(resp)
+		data, err = protojson.Marshal(typedResp)
 		if err != nil {
 			req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode JSON response: %v", err), nil)
 			return
 		}
 	} else {
-		data, err = proto.Marshal(resp)
+		data, err = proto.Marshal(typedResp)
 		if err != nil {
 			req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to encode response: %v", err), nil)
 			return
