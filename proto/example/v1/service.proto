@@ -14,16 +14,40 @@ option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/example/v1";
 // - version: "1.0.0"
 // - timeout: 0 (no timeout)
 service ExampleService {
-  // Simple echo endpoint - no explicit options
+  // Simple echo endpoint with metadata
   rpc Echo(EchoRequest) returns (EchoResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "category"
+        value: "testing"
+      }
+      metadata: {
+        key: "public"
+        value: "true"
+      }
+    };
     option (google.api.http) = {
       post: "/v1/example/echo"
       body: "*"
     };
   }
 
-  // Get greeting - also using all defaults
+  // Get greeting with metadata indicating it's a read-only operation
   rpc GetGreeting(GetGreetingRequest) returns (GetGreetingResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "category"
+        value: "user"
+      }
+      metadata: {
+        key: "readonly"
+        value: "true"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+    };
     option (google.api.http) = {
       get: "/v1/example/greeting/{name}"
     };

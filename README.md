@@ -70,6 +70,7 @@ This plugin lets you generate all three from the same proto files and choose bas
 - **Type-safe generated code** - Compile-time safety for requests/responses
 - **Context propagation** - Proper context handling with timeout support
 - **Configurable timeouts** - Service-level, endpoint-level, and runtime options using `google.protobuf.Duration`
+- **Multi-level metadata** - Service-level metadata for organization, endpoint-level metadata for operation characteristics
 - **Generated error constants** - Type-safe error codes (no magic strings)
 - **Package-level shared types** - ONE shared file per package eliminates duplication across services
 - **Skip support** - Skip generation for specific services or endpoints using `skip: true`
@@ -146,9 +147,23 @@ service OrderService {
     version: "1.0.0"
     description: "Order management service"
     timeout: {seconds: 30}  // Default 30s timeout for all endpoints
+    metadata: {
+      key: "team"
+      value: "orders"
+    }
   };
 
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "false"
+      }
+    };
     option (google.api.http) = {
       post: "/v1/orders"
       body: "*"
@@ -156,6 +171,16 @@ service OrderService {
   }
 
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+    };
     option (google.api.http) = {
       get: "/v1/orders/{id}"
     };
@@ -164,6 +189,14 @@ service OrderService {
   rpc SearchOrders(SearchOrdersRequest) returns (SearchOrdersResponse) {
     option (nats.micro.endpoint) = {
       timeout: {seconds: 60}  // Override: 60s for search operations
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "expensive"
+        value: "true"
+      }
     };
     option (google.api.http) = {
       get: "/v1/orders/search"
@@ -493,7 +526,11 @@ orderv1.RegisterOrderServiceHandlers(nc, svc,
 
 ### Metadata Management
 
-Service metadata can be defined in proto and managed at runtime:
+Metadata can be configured at both **service-level** and **endpoint-level**, enabling fine-grained control over service discovery and operation characteristics.
+
+#### Service-Level Metadata
+
+Service metadata applies to the entire service and is useful for organizational information:
 
 **Proto definition** (embedded at code generation):
 ```protobuf
@@ -507,6 +544,10 @@ service ProductService {
     metadata: {
       key: "team"
       value: "platform"
+    }
+    metadata: {
+      key: "owner"
+      value: "backend-team"
     }
   };
 }
@@ -536,6 +577,158 @@ service ProductService {
    ```
 
 Use `WithAdditionalMetadata()` to add runtime context (instance IDs, hostnames, regions) while keeping compile-time metadata (team, environment, version).
+
+#### Endpoint-Level Metadata
+
+Endpoint metadata is specific to individual RPC methods, enabling operation-specific characteristics like caching behavior, operation types, and permissions:
+
+**Proto definition:**
+```protobuf
+service ProductService {
+  // Service-level metadata (team, environment, etc.)
+  option (nats.micro.service) = {
+    subject_prefix: "api.v1"
+    metadata: {
+      key: "team"
+      value: "catalog"
+    }
+  };
+  
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "false"
+      }
+    };
+  }
+  
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "cache_ttl"
+        value: "300"
+      }
+    };
+  }
+  
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse) {
+    option (nats.micro.endpoint) = {
+      timeout: {seconds: 60}  // Can combine with metadata
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "expensive"
+        value: "true"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+    };
+  }
+}
+```
+
+**Generated code:**
+```go
+// Endpoint metadata map generated for each service
+endpointMetadata := map[string]map[string]string{
+    "create_product": {
+        "cacheable":  "false",
+        "idempotent": "false",
+        "operation":  "write",
+    },
+    "get_product": {
+        "cache_ttl": "300",
+        "cacheable": "true",
+        "operation": "read",
+    },
+    "search_products": {
+        "cache_ttl": "60",
+        "cacheable": "true",
+        "expensive": "true",
+        "operation": "read",
+    },
+}
+
+// Metadata is passed to NATS during endpoint registration
+for name, handler := range endpoints {
+    opts := []micro.EndpointOpt{}
+    if metadata, exists := endpointMetadata[name]; exists && len(metadata) > 0 {
+        opts = append(opts, micro.WithEndpointMetadata(metadata))
+    }
+    adder.AddEndpoint(name, handler, opts...)
+}
+```
+
+**Common endpoint metadata patterns:**
+
+- **Operation type**: `"operation": "read|write|delete"` - For monitoring and permissions
+- **Caching**: `"cacheable": "true|false"`, `"cache_ttl": "300"` - For caching layers
+- **Idempotency**: `"idempotent": "true|false"` - For retry logic
+- **Performance**: `"expensive": "true"` - For rate limiting or resource allocation
+- **Authorization**: `"requires_auth": "true"`, `"permission": "admin"` - For security middleware
+- **Versioning**: `"deprecated": "true"`, `"since_version": "2.0"` - For API lifecycle
+
+**Hybrid approach (recommended):**
+
+Combine service-level metadata for organizational context with endpoint-level metadata for operation-specific characteristics:
+
+```protobuf
+service ProductService {
+  // Organizational metadata
+  option (nats.micro.service) = {
+    metadata: {
+      key: "team"
+      value: "catalog"
+    }
+    metadata: {
+      key: "environment"
+      value: "production"
+    }
+  };
+  
+  // Operation-specific metadata per endpoint
+  rpc GetProduct(...) returns (...) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+    };
+  }
+}
+```
+
+This enables:
+- **Service discovery** - Find services by team, environment, or version
+- **Operation routing** - Route reads to replicas, writes to primaries
+- **Caching strategies** - Cache based on endpoint metadata
+- **Monitoring** - Tag metrics with operation characteristics
+- **Security policies** - Apply permissions based on operation type
 
 ### Skip Support
 

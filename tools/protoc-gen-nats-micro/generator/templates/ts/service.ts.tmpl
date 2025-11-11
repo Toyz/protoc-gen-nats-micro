@@ -132,6 +132,13 @@ export async function register{{.Service.GoName}}Handlers(
 {{- if not $endpointOpts.Skip}}
   await group.addEndpoint('{{ToSnakeCase .GoName}}', {
     handler: handlers.{{ToLowerFirst .GoName}}.bind(handlers),
+{{- if $endpointOpts.Metadata}}
+    metadata: {
+{{- range $key, $value := $endpointOpts.Metadata}}
+      '{{$key}}': '{{$value}}',
+{{- end}}
+    },
+{{- end}}
   });
 {{end -}}
 {{end}}

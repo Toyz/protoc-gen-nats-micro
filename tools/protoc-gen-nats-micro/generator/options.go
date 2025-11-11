@@ -72,15 +72,17 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 
 // EndpointOptions contains metadata about an endpoint
 type EndpointOptions struct {
-	Skip    bool          // Skip generation for this endpoint
-	Timeout time.Duration // Endpoint-specific timeout (0 = use service default)
+	Skip     bool                  // Skip generation for this endpoint
+	Timeout  time.Duration         // Endpoint-specific timeout (0 = use service default)
+	Metadata map[string]string     // Endpoint-specific metadata
 }
 
 // GetEndpointOptions extracts endpoint options from proto method definition
 func GetEndpointOptions(method *protogen.Method) EndpointOptions {
 	opts := EndpointOptions{
-		Skip:    false,
-		Timeout: 0, // 0 means use service default
+		Skip:     false,
+		Timeout:  0, // 0 means use service default
+		Metadata: make(map[string]string),
 	}
 
 	// Try to read the nats.micro.endpoint extension
@@ -90,6 +92,9 @@ func GetEndpointOptions(method *protogen.Method) EndpointOptions {
 			opts.Skip = endpointOpts.Skip
 			if endpointOpts.Timeout != nil {
 				opts.Timeout = endpointOpts.Timeout.AsDuration()
+			}
+			if len(endpointOpts.Metadata) > 0 {
+				opts.Metadata = endpointOpts.Metadata
 			}
 		}
 	}

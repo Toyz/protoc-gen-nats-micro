@@ -53,11 +53,13 @@ func (s *{{ToLowerFirst .Service.GoName}}Service) Endpoints() []{{.Service.GoNam
 {{- end}}
 // Subject prefix: {{.Options.SubjectPrefix}}
 {{- if .Options.Metadata}}
-// Metadata: {{range $key, $value := .Options.Metadata}}{{$key}}={{$value}} {{end}}
+// Service Metadata: {{range $key, $value := .Options.Metadata}}{{$key}}={{$value}} {{end}}
 {{- end}}
 // Configuration options: WithName(), WithVersion(), WithDescription(), WithSubjectPrefix(), WithTimeout()
 // Metadata options: WithMetadata() (replace), WithAdditionalMetadata() (merge)
 // Handler options: WithStatsHandler(), WithDoneHandler(), WithErrorHandler()
+// 
+// Endpoint metadata can be configured via proto options (nats.micro.endpoint).metadata
 func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}Nats, opts ...RegisterOption) ({{.Service.GoName}}Service, error) {
 	cfg := &registerConfig{
 		name:          "{{.Options.Name}}",
@@ -103,6 +105,20 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 {{end -}}
 	}
 
+	// Map of endpoint names to their metadata
+	endpointMetadata := map[string]map[string]string{
+{{range .Service.Methods -}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
+		"{{ToSnakeCase .GoName}}": {
+{{- range $key, $value := $endpointOpts.Metadata}}
+			"{{$key}}": "{{$value}}",
+{{- end}}
+		},
+{{end -}}
+{{end -}}
+	}
+
 	// Use interface to handle both Service and Group
 	type endpointAdder interface {
 		AddEndpoint(string, micro.Handler, ...micro.EndpointOpt) error
@@ -113,9 +129,13 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		adder = svc.AddGroup(cfg.subjectPrefix)
 	}
 
-	// Register all endpoints
+	// Register all endpoints with their metadata
 	for name, handler := range endpoints {
-		if err := adder.AddEndpoint(name, handler); err != nil {
+		opts := []micro.EndpointOpt{}
+		if metadata, exists := endpointMetadata[name]; exists && len(metadata) > 0 {
+			opts = append(opts, micro.WithEndpointMetadata(metadata))
+		}
+		if err := adder.AddEndpoint(name, handler, opts...); err != nil {
 			return nil, fmt.Errorf("failed to add endpoint %s: %w", name, err)
 		}
 	}

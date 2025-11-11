@@ -134,7 +134,10 @@ type EndpointOptions struct {
 	Timeout *durationpb.Duration `protobuf:"bytes,1,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	// Skip code generation for this endpoint (optional, defaults to false)
 	// Set to true to exclude this specific endpoint from NATS micro generation
-	Skip          bool `protobuf:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
+	Skip bool `protobuf:"varint,2,opt,name=skip,proto3" json:"skip,omitempty"`
+	// Endpoint metadata (optional, key-value pairs for endpoint-specific metadata)
+	// This metadata is passed to the NATS micro endpoint registration
+	Metadata      map[string]string `protobuf:"bytes,3,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -181,6 +184,13 @@ func (x *EndpointOptions) GetSkip() bool {
 		return x.Skip
 	}
 	return false
+}
+
+func (x *EndpointOptions) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 var file_nats_options_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -230,10 +240,14 @@ const file_nats_options_proto_rawDesc = "" +
 	"\x04skip\x18\a \x01(\bR\x04skip\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"Z\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x01\n" +
 	"\x0fEndpointOptions\x123\n" +
 	"\atimeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
-	"\x04skip\x18\x02 \x01(\bR\x04skip:W\n" +
+	"\x04skip\x18\x02 \x01(\bR\x04skip\x12E\n" +
+	"\bmetadata\x18\x03 \x03(\v2).nats.micro.EndpointOptions.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01:W\n" +
 	"\aservice\x12\x1f.google.protobuf.ServiceOptions\x18ц\x03 \x01(\v2\x1a.nats.micro.ServiceOptionsR\aservice:Y\n" +
 	"\bendpoint\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\v2\x1b.nats.micro.EndpointOptionsR\bendpointB6Z4github.com/toyz/protoc-gen-nats-micro/gen/nats/microb\x06proto3"
 
@@ -249,28 +263,30 @@ func file_nats_options_proto_rawDescGZIP() []byte {
 	return file_nats_options_proto_rawDescData
 }
 
-var file_nats_options_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_nats_options_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_nats_options_proto_goTypes = []any{
 	(*ServiceOptions)(nil),              // 0: nats.micro.ServiceOptions
 	(*EndpointOptions)(nil),             // 1: nats.micro.EndpointOptions
 	nil,                                 // 2: nats.micro.ServiceOptions.MetadataEntry
-	(*durationpb.Duration)(nil),         // 3: google.protobuf.Duration
-	(*descriptorpb.ServiceOptions)(nil), // 4: google.protobuf.ServiceOptions
-	(*descriptorpb.MethodOptions)(nil),  // 5: google.protobuf.MethodOptions
+	nil,                                 // 3: nats.micro.EndpointOptions.MetadataEntry
+	(*durationpb.Duration)(nil),         // 4: google.protobuf.Duration
+	(*descriptorpb.ServiceOptions)(nil), // 5: google.protobuf.ServiceOptions
+	(*descriptorpb.MethodOptions)(nil),  // 6: google.protobuf.MethodOptions
 }
 var file_nats_options_proto_depIdxs = []int32{
 	2, // 0: nats.micro.ServiceOptions.metadata:type_name -> nats.micro.ServiceOptions.MetadataEntry
-	3, // 1: nats.micro.ServiceOptions.timeout:type_name -> google.protobuf.Duration
-	3, // 2: nats.micro.EndpointOptions.timeout:type_name -> google.protobuf.Duration
-	4, // 3: nats.micro.service:extendee -> google.protobuf.ServiceOptions
-	5, // 4: nats.micro.endpoint:extendee -> google.protobuf.MethodOptions
-	0, // 5: nats.micro.service:type_name -> nats.micro.ServiceOptions
-	1, // 6: nats.micro.endpoint:type_name -> nats.micro.EndpointOptions
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	5, // [5:7] is the sub-list for extension type_name
-	3, // [3:5] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 1: nats.micro.ServiceOptions.timeout:type_name -> google.protobuf.Duration
+	4, // 2: nats.micro.EndpointOptions.timeout:type_name -> google.protobuf.Duration
+	3, // 3: nats.micro.EndpointOptions.metadata:type_name -> nats.micro.EndpointOptions.MetadataEntry
+	5, // 4: nats.micro.service:extendee -> google.protobuf.ServiceOptions
+	6, // 5: nats.micro.endpoint:extendee -> google.protobuf.MethodOptions
+	0, // 6: nats.micro.service:type_name -> nats.micro.ServiceOptions
+	1, // 7: nats.micro.endpoint:type_name -> nats.micro.EndpointOptions
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	6, // [6:8] is the sub-list for extension type_name
+	4, // [4:6] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_nats_options_proto_init() }
@@ -284,7 +300,7 @@ func file_nats_options_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nats_options_proto_rawDesc), len(file_nats_options_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 2,
 			NumServices:   0,
 		},

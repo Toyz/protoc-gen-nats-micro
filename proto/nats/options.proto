@@ -43,6 +43,10 @@ message EndpointOptions {
   // Skip code generation for this endpoint (optional, defaults to false)
   // Set to true to exclude this specific endpoint from NATS micro generation
   bool skip = 2;
+  
+  // Endpoint metadata (optional, key-value pairs for endpoint-specific metadata)
+  // This metadata is passed to the NATS micro endpoint registration
+  map<string, string> metadata = 3;
 }
 
 extend google.protobuf.ServiceOptions {

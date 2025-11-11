@@ -12,7 +12,14 @@ import "google/protobuf/duration.proto";
 option go_package = "github.com/toyz/protoc-gen-nats-micro/gen/product/v1";
 
 // Product catalog service
-
+//
+// This service demonstrates HYBRID metadata usage:
+// - Service-level metadata: team, owner, environment (applies to entire service)
+// - Endpoint-level metadata: operation, cacheable, idempotent, cache_ttl, expensive
+//   (specific to each endpoint for fine-grained control)
+//
+// Use service-level metadata for broad categorization and endpoint-level metadata
+// for operation-specific characteristics like caching behavior, operation type, etc.
 service ProductService {
   option (nats.micro.service) = {
     subject_prefix: "api.v1"
@@ -35,6 +42,20 @@ service ProductService {
   };
   
   rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "false"
+      }
+    };
     option (google.api.http) = {
       post: "/v1/products"
       body: "*"
@@ -42,12 +63,40 @@ service ProductService {
   }
   
   rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "cache_ttl"
+        value: "300"
+      }
+    };
     option (google.api.http) = {
       get: "/v1/products/{id}"
     };
   }
   
   rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "true"
+      }
+    };
     option (google.api.http) = {
       patch: "/v1/products/{id}"
       body: "*"
@@ -55,6 +104,20 @@ service ProductService {
   }
   
   rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {
+    option (nats.micro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "delete"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "true"
+      }
+    };
     option (google.api.http) = {
       delete: "/v1/products/{id}"
     };
@@ -63,6 +126,22 @@ service ProductService {
   rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse) {
     option (nats.micro.endpoint) = {
       timeout: {seconds: 60}  // Search needs more time - 60 second timeout
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "cache_ttl"
+        value: "60"
+      }
+      metadata: {
+        key: "expensive"
+        value: "true"
+      }
     };
     option (google.api.http) = {
       get: "/v1/products"
