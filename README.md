@@ -93,12 +93,12 @@ syntax = "proto3";
 
 package order.v1;
 
-import "nats/options.proto";
+import "natsmicro/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
 
 service OrderService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "api.v1"
     name: "order_service"
     version: "1.0.0"
@@ -111,7 +111,7 @@ service OrderService {
   };
 
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       metadata: {
         key: "operation"
         value: "write"
@@ -128,7 +128,7 @@ service OrderService {
   }
 
   rpc GetOrder(GetOrderRequest) returns (GetOrderResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       metadata: {
         key: "operation"
         value: "read"
@@ -144,7 +144,7 @@ service OrderService {
   }
   
   rpc SearchOrders(SearchOrdersRequest) returns (SearchOrdersResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       timeout: {seconds: 60}  // Override: 60s for search operations
       metadata: {
         key: "operation"
@@ -378,7 +378,7 @@ import "nats/options.proto";
 import "google/protobuf/duration.proto";
 
 service OrderService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "api.v1"
     name: "order_service"
     version: "1.0.0"
@@ -387,7 +387,7 @@ service OrderService {
   };
   
   rpc SlowOperation(Request) returns (Response) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       timeout: {seconds: 120}
     };
   }
@@ -410,12 +410,12 @@ orderv1.RegisterOrderServiceHandlers(nc, svc,
 ```protobuf
 // 2. Endpoint-level (per method)
 rpc SearchProducts(...) returns (...) {
-  option (nats.micro.endpoint) = {timeout: {seconds: 60}};
+  option (natsmicro.endpoint) = {timeout: {seconds: 60}};
 }
 
 // 3. Service-level (default)
 service ProductService {
-  option (nats.micro.service) = {timeout: {seconds: 30}};
+  option (natsmicro.service) = {timeout: {seconds: 30}};
 }
 ```
 
@@ -436,7 +436,7 @@ Metadata is configured at **service-level** (organizational info) and **endpoint
 **Service metadata in proto:**
 ```protobuf
 service ProductService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     metadata: {key: "team" value: "platform"}
     metadata: {key: "environment" value: "production"}
   };
@@ -462,7 +462,7 @@ productv1.RegisterProductServiceHandlers(nc, svc,
 **Endpoint metadata in proto:**
 ```protobuf
 rpc GetProduct(...) returns (...) {
-  option (nats.micro.endpoint) = {
+  option (natsmicro.endpoint) = {
     metadata: {key: "operation" value: "read"}
     metadata: {key: "cacheable" value: "true"}
     metadata: {key: "cache_ttl" value: "300"}
@@ -478,11 +478,11 @@ Exclude services or endpoints from generation:
 
 ```protobuf
 service AdminService {
-  option (nats.micro.service) = {skip: true};  // Skip entire service
+  option (natsmicro.service) = {skip: true};  // Skip entire service
 }
 
 rpc AdminReset(...) returns (...) {
-  option (nats.micro.endpoint) = {skip: true};  // Skip specific method
+  option (natsmicro.endpoint) = {skip: true};  // Skip specific method
 }
 ```
 
