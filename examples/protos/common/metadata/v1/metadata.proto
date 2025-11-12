@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package common.metadata.v1;
+
+import "common/types/v1/timestamp.proto";
+
+option go_package = "example/gen/common/metadata/v1";
+
+// Metadata tracks creation and modification info
+message Metadata {
+  common.types.v1.Timestamp created_at = 1;
+  common.types.v1.Timestamp updated_at = 2;
+  string created_by = 3;
+  string updated_by = 4;
+  map<string, string> tags = 5;
+}

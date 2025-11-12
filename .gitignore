@@ -23,6 +23,29 @@ gen/nats/*
 gen/nats/micro/*
 !gen/nats/micro/options.pb.go
 
+# Example generated code
+examples/complex-go/gen/
+examples/simple-ts/gen/
+examples/simple-py/gen/
+
+# Python
+examples/simple-py/venv/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+
 # Build output
 tools/protoc-gen-nats-micro/protoc-gen-nats-micro
 tools/protoc-gen-nats-micro/protoc-gen-nats-micro.exe

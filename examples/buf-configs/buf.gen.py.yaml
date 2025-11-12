@@ -1,0 +1,18 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Generate Python code from protobuf (built-in to protoc)
+  - protoc_builtin: python
+    out: examples/simple-py/gen
+  
+  # Generate Python stubs (built-in to protoc)
+  - protoc_builtin: pyi
+    out: examples/simple-py/gen
+  
+  # Our custom NATS micro Python generation
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro
+    out: examples/simple-py/gen
+    opt:
+      - paths=source_relative
+      - language=python

@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package example.v1;
+
+import "google/api/annotations.proto";
+import "natsmicro/options.proto";
+
+option go_package = "example/gen/example/v1";
+
+// ExampleService demonstrates using all default values
+// No explicit service options - everything uses defaults:
+// - subject_prefix: "example_service" (auto-generated from service name)
+// - name: "ExampleService" (uses service name)
+// - version: "1.0.0"
+// - timeout: 0 (no timeout)
+service ExampleService {
+  // Simple echo endpoint with metadata
+  rpc Echo(EchoRequest) returns (EchoResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "category"
+        value: "testing"
+      }
+      metadata: {
+        key: "public"
+        value: "true"
+      }
+    };
+    option (google.api.http) = {
+      post: "/v1/example/echo"
+      body: "*"
+    };
+  }
+
+  // Get greeting with metadata indicating it's a read-only operation
+  rpc GetGreeting(GetGreetingRequest) returns (GetGreetingResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "category"
+        value: "user"
+      }
+      metadata: {
+        key: "readonly"
+        value: "true"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+    };
+    option (google.api.http) = {
+      get: "/v1/example/greeting/{name}"
+    };
+  }
+  
+  // AdminReset is a dangerous operation that we want to skip in NATS generation
+  // This might only be available via gRPC for internal admin use
+  rpc AdminReset(AdminResetRequest) returns (AdminResetResponse) {
+    option (natsmicro.endpoint).skip = true;
+    option (google.api.http) = {
+      post: "/v1/example/admin/reset"
+      body: "*"
+    };
+  }
+}
+
+// HealthCheckService is skipped entirely from NATS generation
+// This service might be better suited for HTTP-only health checks
+service HealthCheckService {
+  option (natsmicro.service).skip = true;
+  
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse) {
+    option (google.api.http) = {
+      get: "/v1/health"
+    };
+  }
+  
+  rpc DetailedCheck(HealthCheckRequest) returns (DetailedHealthCheckResponse) {
+    option (google.api.http) = {
+      get: "/v1/health/detailed"
+    };
+  }
+}
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+  int64 timestamp = 2;
+}
+
+message GetGreetingRequest {
+  string name = 1;
+}
+
+message GetGreetingResponse {
+  string greeting = 1;
+}
+
+message AdminResetRequest {
+  string confirmation_token = 1; // Requires admin token for safety
+}
+
+message AdminResetResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message HealthCheckRequest {
+  // Empty request
+}
+
+message HealthCheckResponse {
+  string status = 1; // "ok" or "error"
+}
+
+message DetailedHealthCheckResponse {
+  string status = 1;
+  map<string, string> components = 2; // Component name -> status
+  int64 uptime_seconds = 3;
+}

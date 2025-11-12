@@ -24,7 +24,7 @@ type Language interface {
 	GenerateShared(g *protogen.GeneratedFile, file *protogen.File) error
 
 	// Generate generates code for the given service
-	Generate(g *protogen.GeneratedFile, service *protogen.Service, opts ServiceOptions) error
+	Generate(g *protogen.GeneratedFile, file *protogen.File, service *protogen.Service, opts ServiceOptions) error
 }
 
 // TemplateData holds data passed to templates
@@ -43,7 +43,19 @@ func FuncMap() template.FuncMap {
 		"ToCamelCase":        ToCamelCase,
 		"ToKebabCase":        ToKebabCase,
 		"GetEndpointOptions": GetEndpointOptions,
+		"GetMethodOptions":   GetEndpointOptions, // Alias for consistency
+		"ProtoBasename":      ProtoBasename,
 	}
+}
+
+// ProtoBasename returns the base name of a proto file without extension
+// e.g., "path/to/service.proto" -> "service"
+func ProtoBasename(filename string) string {
+	base := strings.TrimSuffix(filename, ".proto")
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	return base
 }
 
 // ToUpperFirst converts first character to uppercase
@@ -82,6 +94,8 @@ func GetLanguage(name string) (Language, error) {
 		return NewGoLanguage(), nil
 	case "typescript", "ts":
 		return NewTypeScriptLanguage(), nil
+	case "python", "py":
+		return NewPythonLanguage(), nil
 	// Future languages:
 	// case "rust":
 	//   return NewRustLanguage(), nil

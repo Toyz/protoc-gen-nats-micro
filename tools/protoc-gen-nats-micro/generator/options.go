@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	natspb "github.com/toyz/protoc-gen-nats-micro/tools/protoc-gen-nats-micro/nats/micro"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
-
-	natspb "github.com/toyz/protoc-gen-nats-micro/gen/nats/micro"
 )
 
 // ServiceOptions contains metadata about a service

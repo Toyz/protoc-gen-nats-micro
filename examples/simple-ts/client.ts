@@ -11,9 +11,9 @@
  */
 
 import { connect, headers } from 'nats';
-import * as pb from '../../gen/product/v1/service';
-import type { UnaryClientInterceptor } from '../../gen/product/v1/service/shared_nats.pb';
-import { ProductServiceNatsClient } from '../../gen/product/v1/service_nats.pb';
+import * as pb from './gen/product/v1/service';
+import type { UnaryClientInterceptor } from './gen/product/v1/service/shared_nats.pb';
+import { ProductServiceNatsClient } from './gen/product/v1/service_nats.pb';
 
 // Client logging interceptor - demonstrates adding headers and reading response headers
 const clientLoggingInterceptor: UnaryClientInterceptor = async (method, request, reply, invoker, hdrs, responseHeaders) => {

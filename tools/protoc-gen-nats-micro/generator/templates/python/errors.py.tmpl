@@ -1,0 +1,113 @@
+{{- /* Error types */ -}}
+
+class {{.Service.GoName}}Error(Exception):
+    """Error from {{.Service.GoName}} service"""
+    
+    def __init__(
+        self,
+        code: str,
+        method: str,
+        message: str,
+        data: Optional[bytes] = None
+    ):
+        self.code = code
+        self.method = method
+        self.message = message
+        self.data = data
+        super().__init__(f"[{code}] {method}: {message}")
+    
+    def __str__(self) -> str:
+        return f"[{self.code}] {self.method}: {self.message}"
+
+
+# Error constructors
+def new_{{ToSnakeCase .Service.GoName}}_invalid_argument_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create an INVALID_ARGUMENT error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_INVALID_ARGUMENT, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_not_found_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create a NOT_FOUND error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_NOT_FOUND, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_already_exists_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create an ALREADY_EXISTS error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_ALREADY_EXISTS, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_permission_denied_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create a PERMISSION_DENIED error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_PERMISSION_DENIED, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_unauthenticated_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create an UNAUTHENTICATED error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_UNAUTHENTICATED, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_internal_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create an INTERNAL error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_INTERNAL, method, message)
+
+
+def new_{{ToSnakeCase .Service.GoName}}_unavailable_error(
+    method: str,
+    message: str
+) -> {{.Service.GoName}}Error:
+    """Create an UNAVAILABLE error"""
+    return {{.Service.GoName}}Error(ERROR_CODE_UNAVAILABLE, method, message)
+
+
+# Error checkers
+def is_{{ToSnakeCase .Service.GoName}}_invalid_argument(err: Exception) -> bool:
+    """Check if error is INVALID_ARGUMENT"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_INVALID_ARGUMENT
+
+
+def is_{{ToSnakeCase .Service.GoName}}_not_found(err: Exception) -> bool:
+    """Check if error is NOT_FOUND"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_NOT_FOUND
+
+
+def is_{{ToSnakeCase .Service.GoName}}_already_exists(err: Exception) -> bool:
+    """Check if error is ALREADY_EXISTS"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_ALREADY_EXISTS
+
+
+def is_{{ToSnakeCase .Service.GoName}}_permission_denied(err: Exception) -> bool:
+    """Check if error is PERMISSION_DENIED"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_PERMISSION_DENIED
+
+
+def is_{{ToSnakeCase .Service.GoName}}_unauthenticated(err: Exception) -> bool:
+    """Check if error is UNAUTHENTICATED"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_UNAUTHENTICATED
+
+
+def is_{{ToSnakeCase .Service.GoName}}_internal(err: Exception) -> bool:
+    """Check if error is INTERNAL"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_INTERNAL
+
+
+def is_{{ToSnakeCase .Service.GoName}}_unavailable(err: Exception) -> bool:
+    """Check if error is UNAVAILABLE"""
+    return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_UNAVAILABLE

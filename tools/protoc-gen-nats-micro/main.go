@@ -53,30 +53,23 @@ func main() {
 				continue
 			}
 			
-			// Determine package key for shared file tracking
-			// For Go: use the import path (e.g., "github.com/example/gen/order/v1")
-			// For TypeScript: use the directory path (e.g., "gen/order/v1")
-			pkgKey := string(f.GoImportPath)
-			pkgDir := f.GeneratedFilenamePrefix
+		// Determine package key for shared file tracking
+		// Extract directory from filename prefix (remove the actual filename part)
+		pkgDir := f.GeneratedFilenamePrefix
+		lastSlash := strings.LastIndex(pkgDir, "/")
+		if lastSlash > 0 {
+			pkgDir = pkgDir[:lastSlash]
+		}
+		
+		// For Go: use the import path (e.g., "github.com/example/gen/order/v1")
+		// For TypeScript/Python: use the directory path (e.g., "gen/order/v1")
+		pkgKey := string(f.GoImportPath)
+		if cfg.Language == "typescript" || cfg.Language == "ts" || cfg.Language == "python" || cfg.Language == "py" {
+			pkgKey = pkgDir
+		}
 			
-			if cfg.Language == "typescript" || cfg.Language == "ts" {
-				// For TypeScript, extract directory from the filename prefix
-				lastSlash := strings.LastIndex(pkgDir, "/")
-				if lastSlash > 0 {
-					pkgKey = pkgDir[:lastSlash]
-				} else {
-					pkgKey = "."
-				}
-			} else {
-				// For Go, also extract the directory for the shared filename
-				lastSlash := strings.LastIndex(pkgDir, "/")
-				if lastSlash > 0 {
-					pkgDir = pkgDir[:lastSlash]
-				}
-			}
-			
-			// Generate shared file once per package
-			if !generatedShared[pkgKey] {
+			// Generate shared file once per package (only for files with services)
+			if len(f.Services) > 0 && !generatedShared[pkgKey] {
 				generatedShared[pkgKey] = true
 				
 				// For non-Go languages, don't use Go import path
@@ -96,6 +89,10 @@ func main() {
 					}
 				} else if tsLang, ok := lang.(*generator.TypeScriptLanguage); ok {
 					if err := tsLang.GenerateShared(sharedFile, f); err != nil {
+						return fmt.Errorf("generate shared: %w", err)
+					}
+				} else if pyLang, ok := lang.(*generator.PythonLanguage); ok {
+					if err := pyLang.GenerateShared(sharedFile, f); err != nil {
 						return fmt.Errorf("generate shared: %w", err)
 					}
 				}

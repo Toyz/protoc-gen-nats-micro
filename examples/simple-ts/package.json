@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@nats-io/services": "^3.2.0",
+    "@protobuf-ts/runtime-rpc": "^2.11.1",
     "nats": "^2.29.3"
   }
 }

@@ -1,0 +1,139 @@
+{{- /* Client implementation */ -}}
+{{- $serviceName := .Service.GoName -}}
+{{- $serviceOptions := .Options -}}
+
+class {{$serviceName}}Client:
+    """Client for {{$serviceName}} service"""
+    
+    def __init__(
+        self,
+        nc: nats.NATS,
+        interceptors: Optional[List[UnaryClientInterceptor]] = None
+    ):
+        self._nc = nc
+        self._chain = chain_client_interceptors(interceptors or [])
+        {{- if $serviceOptions.Timeout}}
+        self._default_timeout = {{$serviceOptions.Timeout}}
+        {{- else}}
+        self._default_timeout = 5.0
+        {{- end}}
+    
+    {{- range .Service.Methods}}
+    {{- $methodOptions := GetEndpointOptions .}}
+    {{- if not $methodOptions.Skip}}
+    
+    async def {{ToSnakeCase .GoName}}(
+        self,
+        req: pb.{{.Input.GoIdent.GoName}},
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None
+    ) -> Tuple[pb.{{.Output.GoIdent.GoName}}, Dict[str, str]]:
+        """{{.Comments.Leading}}
+        
+        Returns:
+            Tuple of (response, response_headers)
+        
+        Raises:
+            {{$serviceName}}Error: Service error with code and message
+        """
+        
+        # Determine timeout
+        {{- if $methodOptions.Timeout}}
+        request_timeout = timeout or {{$methodOptions.Timeout}}
+        {{- else}}
+        request_timeout = timeout or self._default_timeout
+        {{- end}}
+        
+        # Subject
+        subject = "{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}"
+        
+        # Create invoker
+        async def invoke(
+            req_inner: pb.{{.Input.GoIdent.GoName}},
+            headers_inner: Dict[str, str]
+        ) -> Tuple[pb.{{.Output.GoIdent.GoName}}, Dict[str, str]]:
+            # Serialize request
+            {{- if $serviceOptions.UseJSON}}
+            request_data = req_inner.SerializeToString()
+            {{- else}}
+            request_data = req_inner.SerializeToString()
+            {{- end}}
+            
+            # Convert headers to NATS format (Dict[str, str])
+            nats_headers = headers_inner if headers_inner else None
+            
+            # Make request
+            try:
+                msg = await self._nc.request(
+                    subject,
+                    request_data,
+                    timeout=request_timeout,
+                    headers=nats_headers
+                )
+            except asyncio.TimeoutError:
+                raise {{$serviceName}}Error(
+                    ERROR_CODE_UNAVAILABLE,
+                    "{{.GoName}}",
+                    f"request timeout after {request_timeout}s"
+                )
+            except Exception as e:
+                raise {{$serviceName}}Error(
+                    ERROR_CODE_UNAVAILABLE,
+                    "{{.GoName}}",
+                    f"request failed: {str(e)}"
+                )
+            
+            # Check for error response
+            if msg.headers and "X-Error-Code" in msg.headers:
+                error_code_list = msg.headers["X-Error-Code"]
+                error_code = error_code_list[0] if isinstance(error_code_list, list) else error_code_list
+                try:
+                    error_info = json.loads(msg.data.decode())
+                    raise {{$serviceName}}Error(
+                        error_code,
+                        error_info.get("method", "{{.GoName}}"),
+                        error_info.get("message", "unknown error")
+                    )
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    raise {{$serviceName}}Error(
+                        error_code,
+                        "{{.GoName}}",
+                        "error response parsing failed"
+                    )
+            
+            # Parse response
+            try:
+                {{- if $serviceOptions.UseJSON}}
+                response_msg = pb.{{.Output.GoIdent.GoName}}()
+                response_msg.ParseFromString(msg.data)
+                {{- else}}
+                response_msg = pb.{{.Output.GoIdent.GoName}}.FromString(msg.data)
+                {{- end}}
+            except Exception as e:
+                raise {{$serviceName}}Error(
+                    ERROR_CODE_INTERNAL,
+                    "{{.GoName}}",
+                    f"failed to parse response: {str(e)}"
+                )
+            
+            # Extract response headers
+            response_headers: Dict[str, str] = {}
+            if msg.headers:
+                for key, value in msg.headers.items():
+                    if value and key != "X-Error-Code":
+                        # Handle both string and list values (in case of multi-value headers)
+                        response_headers[key] = value[0] if isinstance(value, list) else value
+            
+            return response_msg, response_headers
+        
+        # Execute with interceptors
+        if self._chain:
+            return await self._chain(req, headers or {}, "{{.GoName}}", invoke)
+        else:
+            return await invoke(req, headers or {})
+    {{- end}}
+    {{- end}}
+    
+    def endpoints(self) -> List[str]:
+        """Get list of endpoint subjects"""
+        return {{ToSnakeCase $serviceName}}_endpoints()

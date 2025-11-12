@@ -1,0 +1,118 @@
+# Error codes
+ERROR_CODE_INVALID_ARGUMENT = "INVALID_ARGUMENT"
+ERROR_CODE_NOT_FOUND = "NOT_FOUND"
+ERROR_CODE_ALREADY_EXISTS = "ALREADY_EXISTS"
+ERROR_CODE_PERMISSION_DENIED = "PERMISSION_DENIED"
+ERROR_CODE_UNAUTHENTICATED = "UNAUTHENTICATED"
+ERROR_CODE_INTERNAL = "INTERNAL"
+ERROR_CODE_UNAVAILABLE = "UNAVAILABLE"
+
+
+@dataclass
+class ServerInfo:
+    """Context information for server handlers"""
+    method: str
+    headers: Optional[Dict[str, str]] = None
+    
+    def __post_init__(self):
+        if self.headers is None:
+            self.headers = {}
+
+
+@dataclass
+class ResponseHeaders:
+    """Container for response headers"""
+    headers: Dict[str, str]
+    
+    def __init__(self):
+        self.headers = {}
+    
+    def set(self, key: str, value: str) -> None:
+        """Set a response header"""
+        self.headers[key] = value
+    
+    def get(self, key: str) -> Optional[str]:
+        """Get a response header"""
+        return self.headers.get(key)
+
+
+# Type aliases for interceptors
+UnaryServerHandler = Callable[[Any, ServerInfo], Awaitable[Any]]
+UnaryServerInterceptor = Callable[
+    [Any, ServerInfo, UnaryServerHandler],
+    Awaitable[Any]
+]
+
+UnaryClientInvoker = Callable[
+    [str, Any, Optional[Dict[str, str]], Optional[ResponseHeaders]],
+    Awaitable[Any]
+]
+UnaryClientInterceptor = Callable[
+    [str, Any, UnaryClientInvoker, Optional[Dict[str, str]], Optional[ResponseHeaders]],
+    Awaitable[Any]
+]
+
+
+def chain_server_interceptors(
+    interceptors: list[UnaryServerInterceptor]
+) -> Optional[UnaryServerInterceptor]:
+    """Chain multiple server interceptors into one"""
+    if not interceptors:
+        return None
+    
+    if len(interceptors) == 1:
+        return interceptors[0]
+    
+    async def chained(
+        request: Any,
+        info: ServerInfo,
+        handler: UnaryServerHandler
+    ) -> Any:
+        # Build chain from right to left
+        current_handler = handler
+        for interceptor in reversed(interceptors):
+            next_handler = current_handler
+            async def make_handler(req: Any, inf: ServerInfo, nh=next_handler, ic=interceptor) -> Any:
+                return await ic(req, inf, nh)
+            current_handler = make_handler
+        
+        return await current_handler(request, info)
+    
+    return chained
+
+
+def chain_client_interceptors(
+    interceptors: list[UnaryClientInterceptor]
+) -> Optional[UnaryClientInterceptor]:
+    """Chain multiple client interceptors into one"""
+    if not interceptors:
+        return None
+    
+    if len(interceptors) == 1:
+        return interceptors[0]
+    
+    async def chained(
+        method: str,
+        request: Any,
+        invoker: UnaryClientInvoker,
+        headers: Optional[Dict[str, str]] = None,
+        response_headers: Optional[ResponseHeaders] = None
+    ) -> Any:
+        # Build chain from right to left
+        current_invoker = invoker
+        for interceptor in reversed(interceptors):
+            next_invoker = current_invoker
+            async def make_invoker(
+                m: str,
+                req: Any,
+                h: Optional[Dict[str, str]] = None,
+                rh: Optional[ResponseHeaders] = None,
+                ni=next_invoker,
+                ic=interceptor
+            ) -> Any:
+                return await ic(m, req, ni, h, rh)
+            current_invoker = make_invoker
+        
+        return await current_invoker(method, request, headers, response_headers)
+    
+    return chained

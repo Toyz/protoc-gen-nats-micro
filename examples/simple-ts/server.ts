@@ -11,11 +11,11 @@
  */
 
 import { connect } from 'nats';
-import { Status } from '../../gen/common/types/v1/status';
-import * as pb from '../../gen/product/v1/service';
-import type { UnaryServerInterceptor } from '../../gen/product/v1/service/shared_nats.pb';
-import type { IProductServiceNats } from '../../gen/product/v1/service_nats.pb';
-import { registerProductServiceHandlers } from '../../gen/product/v1/service_nats.pb';
+import { Status } from './gen/common/types/v1/status';
+import * as pb from './gen/product/v1/service';
+import type { UnaryServerInterceptor } from './gen/product/v1/service/shared_nats.pb';
+import type { IProductServiceNats } from './gen/product/v1/service_nats.pb';
+import { registerProductServiceHandlers } from './gen/product/v1/service_nats.pb';
 
 // Simple in-memory product store
 const products = new Map<string, pb.Product>();

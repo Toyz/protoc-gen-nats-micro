@@ -1,0 +1,153 @@
+{{- /* Server implementation */ -}}
+{{- $serviceName := .Service.GoName -}}
+{{- $serviceOptions := .Options -}}
+
+class {{$serviceName}}Handler(Protocol):
+    """Handler interface for {{$serviceName}} service"""
+    {{- range .Service.Methods}}
+    {{- $methodOptions := GetEndpointOptions .}}
+    
+    async def {{ToSnakeCase .GoName}}(
+        self,
+        req: pb.{{.Input.GoIdent.GoName}},
+        info: ServerInfo
+    ) -> pb.{{.Output.GoIdent.GoName}}:
+        """{{.Comments.Leading}}"""
+        ...
+    {{- end}}
+
+
+async def register_{{ToSnakeCase $serviceName}}(
+    nc: nats.NATS,
+    handler: {{$serviceName}}Handler,
+    interceptors: Optional[List[UnaryServerInterceptor]] = None
+) -> micro.Service:
+    """Register {{$serviceName}} service with NATS micro"""
+    
+    # Chain interceptors
+    chain = chain_server_interceptors(interceptors or [])
+    
+    # Service configuration
+    config = micro.ServiceConfig(
+        name="{{or $serviceOptions.Name (ToKebabCase $serviceName)}}",
+        version="{{or $serviceOptions.Version "0.0.1"}}",
+        description="{{or $serviceOptions.Description $serviceName}}",
+        {{- if $serviceOptions.Metadata}}
+        metadata={
+            {{- range $key, $value := $serviceOptions.Metadata}}
+            "{{$key}}": "{{$value}}",
+            {{- end}}
+        }
+        {{- end}}
+    )
+    
+    # Create service
+    service = await micro.add_service(nc, config)
+    
+    {{- range .Service.Methods}}
+    {{- $methodOptions := GetEndpointOptions .}}
+    {{- if not $methodOptions.Skip}}
+    
+    # Register {{.GoName}} endpoint
+    async def _handle_{{ToSnakeCase .GoName}}(req: micro.Request) -> None:
+        try:
+            # Parse request
+            {{- if $serviceOptions.UseJSON}}
+            request_msg = pb.{{.Input.GoIdent.GoName}}()
+            request_msg.ParseFromString(req.data)
+            {{- else}}
+            request_msg = pb.{{.Input.GoIdent.GoName}}.FromString(req.data)
+            {{- end}}
+            
+            # Extract headers
+            headers: Dict[str, str] = {}
+            if req.headers:
+                for key, values in req.headers.items():
+                    if values:
+                        headers[key] = values[0]
+            
+            # Create server info
+            info = ServerInfo(
+                method="{{.GoName}}",
+                headers=headers
+            )
+            
+            # Create response headers
+            response_headers = ResponseHeaders()
+            
+            # Create handler wrapper
+            async def invoke(
+                req_inner: pb.{{.Input.GoIdent.GoName}},
+                info_inner: ServerInfo
+            ) -> pb.{{.Output.GoIdent.GoName}}:
+                result = await handler.{{ToSnakeCase .GoName}}(req_inner, info_inner)
+                return result
+            
+            # Execute with interceptors
+            if chain:
+                response_msg = await chain(request_msg, info, invoke)
+            else:
+                response_msg = await invoke(request_msg, info)
+            
+            # Serialize response
+            {{- if $serviceOptions.UseJSON}}
+            response_data = response_msg.SerializeToString()
+            {{- else}}
+            response_data = response_msg.SerializeToString()
+            {{- end}}
+            
+            # Add response headers
+            resp_headers = None
+            if response_headers.headers:
+                resp_headers = response_headers.headers
+            
+            # Send response
+            await req.respond(response_data, headers=resp_headers)
+            
+        except {{$serviceName}}Error as e:
+            # Service error - send structured error
+            error_data = json.dumps({
+                "code": e.code,
+                "message": e.message,
+                "method": e.method
+            }).encode()
+            await req.respond(error_data, headers={"X-Error-Code": e.code})
+            
+        except Exception as e:
+            # Unexpected error
+            error_data = json.dumps({
+                "code": ERROR_CODE_INTERNAL,
+                "message": str(e),
+                "method": "{{.GoName}}"
+            }).encode()
+            await req.respond(error_data, headers={"X-Error-Code": ERROR_CODE_INTERNAL})
+    
+    # Add endpoint
+    await service.add_endpoint(
+        name="{{ToSnakeCase .GoName}}",
+        handler=_handle_{{ToSnakeCase .GoName}},
+        subject="{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}",
+        {{- if $methodOptions.Metadata}}
+        metadata={
+            {{- range $key, $value := $methodOptions.Metadata}}
+            "{{$key}}": "{{$value}}",
+            {{- end}}
+        }
+        {{- end}}
+    )
+    {{- end}}
+    {{- end}}
+    
+    return service
+
+
+def {{ToSnakeCase $serviceName}}_endpoints() -> List[str]:
+    """Get list of endpoint subjects for {{$serviceName}}"""
+    return [
+        {{- range .Service.Methods}}
+        {{- $methodOptions := GetEndpointOptions .}}
+        {{- if not $methodOptions.Skip}}
+        "{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}",
+        {{- end}}
+        {{- end}}
+    ]

@@ -48,18 +48,22 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 		if err := tsLang.GenerateHeader(g, file); err != nil {
 			return fmt.Errorf("generate header: %w", err)
 		}
+	} else if pyLang, ok := lang.(*PythonLanguage); ok {
+		if err := pyLang.GenerateHeader(g, file); err != nil {
+			return fmt.Errorf("generate header: %w", err)
+		}
 	}
 
 	// Generate each service
 	for _, service := range file.Services {
 		opts := GetServiceOptions(service)
-		
+
 		// Skip this service if skip is set to true
 		if opts.Skip {
 			continue
 		}
-		
-		if err := lang.Generate(g, service, opts); err != nil {
+
+		if err := lang.Generate(g, file, service, opts); err != nil {
 			return fmt.Errorf("generate service %s: %w", service.GoName, err)
 		}
 	}

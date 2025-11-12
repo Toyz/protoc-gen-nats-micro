@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package common.types.v1;
+
+option go_package = "example/gen/common/types/v1";
+
+// Timestamp represents a point in time
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}

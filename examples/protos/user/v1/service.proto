@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package user.v1;
+
+import "natsmicro/options.proto";
+
+option go_package = "example/gen/user/v1";
+
+// User service definition
+// This service uses JSON encoding for human-readable message debugging
+service UserService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1"
+    name: "user_service"
+    version: "1.0.0"
+    description: "User management service"
+    json: true  // Use JSON encoding instead of binary protobuf
+  };
+  
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+// Request/Response messages
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+message CreateUserResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}

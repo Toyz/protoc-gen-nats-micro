@@ -3,15 +3,15 @@ managed:
   enabled: false
 plugins:
   # TypeScript protobuf generation using protoc-gen-ts
-  - remote: buf.build/community/timostamm-protobuf-ts
-    out: gen
+  - local: protoc-gen-ts
+    out: examples/simple-ts/gen
     opt:
       - generate_dependencies
       - long_type_string
   
   # Our custom NATS micro TypeScript generation
   - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro
-    out: gen
+    out: examples/simple-ts/gen
     opt:
       - language=typescript
       - paths=source_relative

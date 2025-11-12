@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package order.v1;
+
+import "natsmicro/options.proto";
+import "google/api/annotations.proto";
+
+option go_package = "example/gen/order/v1";
+
+// Order fulfillment service
+service OrderFulfillmentService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1"
+    name: "order_fulfillment_service"
+    version: "1.0.0"
+    description: "Order fulfillment service"
+  };
+  
+  rpc PrepareOrder(PrepareOrderRequest) returns (PrepareOrderResponse) {
+    option (google.api.http) = {
+      post: "/v1/fulfillment/prepare"
+      body: "*"
+    };
+  }
+  
+  rpc ShipOrder(ShipOrderRequest) returns (ShipOrderResponse) {
+    option (google.api.http) = {
+      post: "/v1/fulfillment/ship"
+      body: "*"
+    };
+  }
+  
+  rpc GetFulfillmentStatus(GetFulfillmentStatusRequest) returns (GetFulfillmentStatusResponse) {
+    option (google.api.http) = {
+      get: "/v1/fulfillment/{order_id}"
+    };
+  }
+}
+
+message PrepareOrderRequest {
+  string order_id = 1;
+  string warehouse_id = 2;
+}
+
+message PrepareOrderResponse {
+  string order_id = 1;
+  string fulfillment_id = 2;
+  string status = 3;
+}
+
+message ShipOrderRequest {
+  string order_id = 1;
+  string fulfillment_id = 2;
+  string carrier = 3;
+  string tracking_number = 4;
+}
+
+message ShipOrderResponse {
+  string order_id = 1;
+  string fulfillment_id = 2;
+  string status = 3;
+  string shipped_at = 4;
+}
+
+message GetFulfillmentStatusRequest {
+  string order_id = 1;
+}
+
+message GetFulfillmentStatusResponse {
+  string order_id = 1;
+  string fulfillment_id = 2;
+  string status = 3;
+  string warehouse_id = 4;
+  string carrier = 5;
+  string tracking_number = 6;
+}

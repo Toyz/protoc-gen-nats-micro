@@ -29,8 +29,9 @@ func (l *TypeScriptLanguage) FileExtension() string {
 	return "_nats.pb.ts"
 }
 
-func (l *TypeScriptLanguage) Generate(g *protogen.GeneratedFile, service *protogen.Service, opts ServiceOptions) error {
+func (l *TypeScriptLanguage) Generate(g *protogen.GeneratedFile, file *protogen.File, service *protogen.Service, opts ServiceOptions) error {
 	data := TemplateData{
+		File:    file,
 		Service: service,
 		Options: opts,
 	}

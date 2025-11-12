@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.10
 // 	protoc        (unknown)
-// source: nats/options.proto
+// source: natsmicro/options.proto
 
 package micro
 
@@ -53,7 +53,7 @@ type ServiceOptions struct {
 
 func (x *ServiceOptions) Reset() {
 	*x = ServiceOptions{}
-	mi := &file_nats_options_proto_msgTypes[0]
+	mi := &file_natsmicro_options_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65,7 +65,7 @@ func (x *ServiceOptions) String() string {
 func (*ServiceOptions) ProtoMessage() {}
 
 func (x *ServiceOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_nats_options_proto_msgTypes[0]
+	mi := &file_natsmicro_options_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -78,7 +78,7 @@ func (x *ServiceOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceOptions.ProtoReflect.Descriptor instead.
 func (*ServiceOptions) Descriptor() ([]byte, []int) {
-	return file_nats_options_proto_rawDescGZIP(), []int{0}
+	return file_natsmicro_options_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ServiceOptions) GetSubjectPrefix() string {
@@ -155,7 +155,7 @@ type EndpointOptions struct {
 
 func (x *EndpointOptions) Reset() {
 	*x = EndpointOptions{}
-	mi := &file_nats_options_proto_msgTypes[1]
+	mi := &file_natsmicro_options_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -167,7 +167,7 @@ func (x *EndpointOptions) String() string {
 func (*EndpointOptions) ProtoMessage() {}
 
 func (x *EndpointOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_nats_options_proto_msgTypes[1]
+	mi := &file_natsmicro_options_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -180,7 +180,7 @@ func (x *EndpointOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointOptions.ProtoReflect.Descriptor instead.
 func (*EndpointOptions) Descriptor() ([]byte, []int) {
-	return file_nats_options_proto_rawDescGZIP(), []int{1}
+	return file_natsmicro_options_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *EndpointOptions) GetTimeout() *durationpb.Duration {
@@ -204,96 +204,95 @@ func (x *EndpointOptions) GetMetadata() map[string]string {
 	return nil
 }
 
-var file_nats_options_proto_extTypes = []protoimpl.ExtensionInfo{
+var file_natsmicro_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.ServiceOptions)(nil),
 		ExtensionType: (*ServiceOptions)(nil),
 		Field:         50001,
-		Name:          "nats.micro.service",
+		Name:          "natsmicro.service",
 		Tag:           "bytes,50001,opt,name=service",
-		Filename:      "nats/options.proto",
+		Filename:      "natsmicro/options.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: (*EndpointOptions)(nil),
 		Field:         50002,
-		Name:          "nats.micro.endpoint",
+		Name:          "natsmicro.endpoint",
 		Tag:           "bytes,50002,opt,name=endpoint",
-		Filename:      "nats/options.proto",
+		Filename:      "natsmicro/options.proto",
 	},
 }
 
 // Extension fields to descriptorpb.ServiceOptions.
 var (
-	// optional nats.micro.ServiceOptions service = 50001;
-	E_Service = &file_nats_options_proto_extTypes[0]
+	// optional natsmicro.ServiceOptions service = 50001;
+	E_Service = &file_natsmicro_options_proto_extTypes[0]
 )
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
-	// optional nats.micro.EndpointOptions endpoint = 50002;
-	E_Endpoint = &file_nats_options_proto_extTypes[1]
+	// optional natsmicro.EndpointOptions endpoint = 50002;
+	E_Endpoint = &file_natsmicro_options_proto_extTypes[1]
 )
 
-var File_nats_options_proto protoreflect.FileDescriptor
+var File_natsmicro_options_proto protoreflect.FileDescriptor
 
-const file_nats_options_proto_rawDesc = "" +
+const file_natsmicro_options_proto_rawDesc = "" +
 	"\n" +
-	"\x12nats/options.proto\x12\n" +
-	"nats.micro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xe7\x02\n" +
+	"\x17natsmicro/options.proto\x12\tnatsmicro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xe6\x02\n" +
 	"\x0eServiceOptions\x12%\n" +
 	"\x0esubject_prefix\x18\x01 \x01(\tR\rsubjectPrefix\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12D\n" +
-	"\bmetadata\x18\x05 \x03(\v2(.nats.micro.ServiceOptions.MetadataEntryR\bmetadata\x123\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12C\n" +
+	"\bmetadata\x18\x05 \x03(\v2'.natsmicro.ServiceOptions.MetadataEntryR\bmetadata\x123\n" +
 	"\atimeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
 	"\x04skip\x18\a \x01(\bR\x04skip\x12\x12\n" +
 	"\x04json\x18\b \x01(\bR\x04json\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xde\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdd\x01\n" +
 	"\x0fEndpointOptions\x123\n" +
 	"\atimeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
-	"\x04skip\x18\x02 \x01(\bR\x04skip\x12E\n" +
-	"\bmetadata\x18\x03 \x03(\v2).nats.micro.EndpointOptions.MetadataEntryR\bmetadata\x1a;\n" +
+	"\x04skip\x18\x02 \x01(\bR\x04skip\x12D\n" +
+	"\bmetadata\x18\x03 \x03(\v2(.natsmicro.EndpointOptions.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01:W\n" +
-	"\aservice\x12\x1f.google.protobuf.ServiceOptions\x18ц\x03 \x01(\v2\x1a.nats.micro.ServiceOptionsR\aservice:Y\n" +
-	"\bendpoint\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\v2\x1b.nats.micro.EndpointOptionsR\bendpointB6Z4github.com/toyz/protoc-gen-nats-micro/gen/nats/microb\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01:V\n" +
+	"\aservice\x12\x1f.google.protobuf.ServiceOptions\x18ц\x03 \x01(\v2\x19.natsmicro.ServiceOptionsR\aservice:X\n" +
+	"\bendpoint\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\v2\x1a.natsmicro.EndpointOptionsR\bendpointB6Z4github.com/toyz/protoc-gen-nats-micro/gen/nats/microb\x06proto3"
 
 var (
-	file_nats_options_proto_rawDescOnce sync.Once
-	file_nats_options_proto_rawDescData []byte
+	file_natsmicro_options_proto_rawDescOnce sync.Once
+	file_natsmicro_options_proto_rawDescData []byte
 )
 
-func file_nats_options_proto_rawDescGZIP() []byte {
-	file_nats_options_proto_rawDescOnce.Do(func() {
-		file_nats_options_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_nats_options_proto_rawDesc), len(file_nats_options_proto_rawDesc)))
+func file_natsmicro_options_proto_rawDescGZIP() []byte {
+	file_natsmicro_options_proto_rawDescOnce.Do(func() {
+		file_natsmicro_options_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_natsmicro_options_proto_rawDesc), len(file_natsmicro_options_proto_rawDesc)))
 	})
-	return file_nats_options_proto_rawDescData
+	return file_natsmicro_options_proto_rawDescData
 }
 
-var file_nats_options_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_nats_options_proto_goTypes = []any{
-	(*ServiceOptions)(nil),              // 0: nats.micro.ServiceOptions
-	(*EndpointOptions)(nil),             // 1: nats.micro.EndpointOptions
-	nil,                                 // 2: nats.micro.ServiceOptions.MetadataEntry
-	nil,                                 // 3: nats.micro.EndpointOptions.MetadataEntry
+var file_natsmicro_options_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_natsmicro_options_proto_goTypes = []any{
+	(*ServiceOptions)(nil),              // 0: natsmicro.ServiceOptions
+	(*EndpointOptions)(nil),             // 1: natsmicro.EndpointOptions
+	nil,                                 // 2: natsmicro.ServiceOptions.MetadataEntry
+	nil,                                 // 3: natsmicro.EndpointOptions.MetadataEntry
 	(*durationpb.Duration)(nil),         // 4: google.protobuf.Duration
 	(*descriptorpb.ServiceOptions)(nil), // 5: google.protobuf.ServiceOptions
 	(*descriptorpb.MethodOptions)(nil),  // 6: google.protobuf.MethodOptions
 }
-var file_nats_options_proto_depIdxs = []int32{
-	2, // 0: nats.micro.ServiceOptions.metadata:type_name -> nats.micro.ServiceOptions.MetadataEntry
-	4, // 1: nats.micro.ServiceOptions.timeout:type_name -> google.protobuf.Duration
-	4, // 2: nats.micro.EndpointOptions.timeout:type_name -> google.protobuf.Duration
-	3, // 3: nats.micro.EndpointOptions.metadata:type_name -> nats.micro.EndpointOptions.MetadataEntry
-	5, // 4: nats.micro.service:extendee -> google.protobuf.ServiceOptions
-	6, // 5: nats.micro.endpoint:extendee -> google.protobuf.MethodOptions
-	0, // 6: nats.micro.service:type_name -> nats.micro.ServiceOptions
-	1, // 7: nats.micro.endpoint:type_name -> nats.micro.EndpointOptions
+var file_natsmicro_options_proto_depIdxs = []int32{
+	2, // 0: natsmicro.ServiceOptions.metadata:type_name -> natsmicro.ServiceOptions.MetadataEntry
+	4, // 1: natsmicro.ServiceOptions.timeout:type_name -> google.protobuf.Duration
+	4, // 2: natsmicro.EndpointOptions.timeout:type_name -> google.protobuf.Duration
+	3, // 3: natsmicro.EndpointOptions.metadata:type_name -> natsmicro.EndpointOptions.MetadataEntry
+	5, // 4: natsmicro.service:extendee -> google.protobuf.ServiceOptions
+	6, // 5: natsmicro.endpoint:extendee -> google.protobuf.MethodOptions
+	0, // 6: natsmicro.service:type_name -> natsmicro.ServiceOptions
+	1, // 7: natsmicro.endpoint:type_name -> natsmicro.EndpointOptions
 	8, // [8:8] is the sub-list for method output_type
 	8, // [8:8] is the sub-list for method input_type
 	6, // [6:8] is the sub-list for extension type_name
@@ -301,27 +300,27 @@ var file_nats_options_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_nats_options_proto_init() }
-func file_nats_options_proto_init() {
-	if File_nats_options_proto != nil {
+func init() { file_natsmicro_options_proto_init() }
+func file_natsmicro_options_proto_init() {
+	if File_natsmicro_options_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nats_options_proto_rawDesc), len(file_nats_options_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_natsmicro_options_proto_rawDesc), len(file_natsmicro_options_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 2,
 			NumServices:   0,
 		},
-		GoTypes:           file_nats_options_proto_goTypes,
-		DependencyIndexes: file_nats_options_proto_depIdxs,
-		MessageInfos:      file_nats_options_proto_msgTypes,
-		ExtensionInfos:    file_nats_options_proto_extTypes,
+		GoTypes:           file_natsmicro_options_proto_goTypes,
+		DependencyIndexes: file_natsmicro_options_proto_depIdxs,
+		MessageInfos:      file_natsmicro_options_proto_msgTypes,
+		ExtensionInfos:    file_natsmicro_options_proto_extTypes,
 	}.Build()
-	File_nats_options_proto = out.File
-	file_nats_options_proto_goTypes = nil
-	file_nats_options_proto_depIdxs = nil
+	File_natsmicro_options_proto = out.File
+	file_natsmicro_options_proto_goTypes = nil
+	file_natsmicro_options_proto_depIdxs = nil
 }

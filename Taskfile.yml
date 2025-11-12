@@ -12,13 +12,13 @@ tasks:
     cmds:
       - task: generate
 
-  # Phase 1: Generate extension types (nats/options.proto)
+  # Phase 1: Generate extension types (natsmicro/options.proto)
   generate:extensions:
     desc: Generate protobuf extensions (phase 1)
     cmds:
-      - buf generate --path proto/nats/options.proto
+      - buf generate --path extensions/proto/natsmicro/options.proto
     sources:
-      - proto/nats/options.proto
+      - extensions/proto/natsmicro/options.proto
       - buf.gen.yaml
     generates:
       - gen/nats/micro/options.pb.go
@@ -37,24 +37,20 @@ tasks:
     generates:
       - "{{.PLUGIN_BIN}}"
 
-  # Phase 3: Generate all service code
-  generate:
-    desc: Generate all protobuf code (gRPC + NATS + OpenAPI)
+  # Phase 3a: Generate Go code
+  generate:go:
+    desc: Generate Go protobuf code (NATS + protobuf)
     deps:
       - build:plugin
     cmds:
-      - buf generate --template examples/buf-configs/buf.gen.yaml
-      - go run ./examples/openapi-merge -output gen/api.swagger.json
+      - buf generate --template examples/buf-configs/buf.gen.yaml examples/protos
     sources:
-      - proto/**/*.proto
+      - examples/protos/**/*.proto
       - examples/buf-configs/buf.gen.yaml
       - "{{.PLUGIN_BIN}}"
     generates:
-      - gen/**/*.pb.go
-      - gen/**/*_grpc.pb.go
-      - gen/**/*_nats.pb.go
-      - gen/**/*.swagger.yaml
-      - gen/api.swagger.json
+      - examples/complex-go/gen/**/*.pb.go
+      - examples/complex-go/gen/**/*_nats.pb.go
 
   # Phase 3b: Generate TypeScript code
   generate:ts:
@@ -62,36 +58,75 @@ tasks:
     deps:
       - build:plugin
     cmds:
-      - buf generate --template examples/buf-configs/buf.gen.ts.yaml
+      - buf generate --template examples/buf-configs/buf.gen.ts.yaml examples/protos
     sources:
-      - proto/**/*.proto
+      - examples/protos/**/*.proto
       - examples/buf-configs/buf.gen.ts.yaml
       - "{{.PLUGIN_BIN}}"
     generates:
-      - gen/**/*.pb.ts
-      - gen/**/*_nats.pb.ts
+      - examples/simple-ts/gen/**/*.pb.ts
+      - examples/simple-ts/gen/**/*_nats.pb.ts
 
-  # Generate all (Go + TypeScript)
-  generate:all:
-    desc: Generate all protobuf code (Go + TypeScript)
+  # Phase 3c: Generate Python code
+  generate:python:
+    desc: Generate Python protobuf code (NATS + protobuf)
     deps:
-      - generate
+      - build:plugin
+    cmds:
+      - buf generate --template examples/buf-configs/buf.gen.py.yaml extensions/proto
+      - buf generate --template examples/buf-configs/buf.gen.py.yaml examples/protos
+    sources:
+      - examples/protos/**/*.proto
+      - extensions/proto/**/*.proto
+      - examples/buf-configs/buf.gen.py.yaml
+      - "{{.PLUGIN_BIN}}"
+    generates:
+      - examples/simple-py/gen/**/*_pb2.py
+      - examples/simple-py/gen/**/*_nats_pb2.py
+
+  # Phase 3: Generate all languages (Go + TypeScript + Python)
+  generate:
+    desc: Generate all protobuf code (Go + TypeScript + Python)
+    deps:
+      - generate:go
       - generate:ts
+      - generate:python
 
   # Clean generated files
   clean:
     desc: Remove all generated files
     cmds:
       - rm -rf gen/
+      - rm -rf examples/complex-go/gen/
+      - rm -rf examples/simple-ts/gen/
+      - rm -rf examples/simple-py/gen/
       - rm -f {{.PLUGIN_BIN}}
+
+  # Build Go examples
+  build:go:
+    desc: Build Go example applications
+    deps:
+      - generate:go
+    cmds:
+      - go build -C examples/complex-go -o server.exe ./server.go
+      - go build -C examples/complex-go -o client.exe ./client.go
+
+  # Build TypeScript examples
+  build:ts:
+    desc: Build TypeScript example applications
+    deps:
+      - generate:ts
+    dir: examples/simple-ts
+    cmds:
+      - npm install
+      - npm run build
 
   # Build all examples
   build:
-    desc: Build all example applications
+    desc: Build all example applications (Go + TypeScript)
     deps:
-      - generate
-    cmds:
-      - go build ./examples/...
+      - build:go
+      - build:ts
 
   # Run tests
   test:
@@ -107,26 +142,52 @@ tasks:
     cmds:
       - docker run --rm -p 4222:4222 --name nats nats
 
-  # Run complex server example
-  run:server:
-    desc: Run complex-server example
+  # Run Go server example
+  run:go:server:
+    desc: Run Go server example
     deps:
-      - generate
+      - generate:go
     cmds:
-      - go run ./examples/complex-server
+      - go run examples/complex-go/server.go
 
-  # Run complex client example
-  run:client:
-    desc: Run complex-client example
+  # Run Go client example
+  run:go:client:
+    desc: Run Go client example
     deps:
-      - generate
+      - generate:go
     cmds:
-      - go run ./examples/complex-client
+      - go run examples/complex-go/client.go
 
-  # Run REST gateway
-  run:gateway:
-    desc: Run REST API gateway (gRPC-Gateway)
-    deps:
-      - generate
+  # Setup Python venv
+  setup:python:
+    desc: Setup Python virtual environment and install dependencies
+    dir: examples/simple-py
     cmds:
-      - go run ./examples/rest-gateway
+      - python -m venv venv
+      - ./venv/Scripts/pip install -r requirements.txt
+    sources:
+      - requirements.txt
+    generates:
+      - venv/
+    status:
+      - test -d venv
+
+  # Run Python server
+  run:python:server:
+    desc: Run Python server example
+    deps:
+      - generate:python
+      - setup:python
+    dir: examples/simple-py
+    cmds:
+      - ./venv/Scripts/python server.py
+
+  # Run Python client
+  run:python:client:
+    desc: Run Python client example
+    deps:
+      - generate:python
+      - setup:python
+    dir: examples/simple-py
+    cmds:
+      - ./venv/Scripts/python client.py

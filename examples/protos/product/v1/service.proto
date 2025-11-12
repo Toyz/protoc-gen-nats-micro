@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package product.v1;
+
+import "common/types/v1/money.proto";
+import "common/types/v1/status.proto";
+import "common/metadata/v1/metadata.proto";
+import "natsmicro/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "example/gen/product/v1";
+
+// Product catalog service
+//
+// This service demonstrates HYBRID metadata usage:
+// - Service-level metadata: team, owner, environment (applies to entire service)
+// - Endpoint-level metadata: operation, cacheable, idempotent, cache_ttl, expensive
+//   (specific to each endpoint for fine-grained control)
+//
+// Use service-level metadata for broad categorization and endpoint-level metadata
+// for operation-specific characteristics like caching behavior, operation type, etc.
+service ProductService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1"
+    name: "product_service"
+    version: "1.0.0"
+    description: "Product catalog management service"
+    timeout: {seconds: 30}  // Default 30 second timeout for all endpoints
+    metadata: {
+      key: "team"
+      value: "catalog"
+    }
+    metadata: {
+      key: "owner"
+      value: "platform-team"
+    }
+    metadata: {
+      key: "environment"
+      value: "production"
+    }
+  };
+  
+  rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "false"
+      }
+    };
+    option (google.api.http) = {
+      post: "/v1/products"
+      body: "*"
+    };
+  }
+  
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "cache_ttl"
+        value: "300"
+      }
+    };
+    option (google.api.http) = {
+      get: "/v1/products/{id}"
+    };
+  }
+  
+  rpc UpdateProduct(UpdateProductRequest) returns (UpdateProductResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "write"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "true"
+      }
+    };
+    option (google.api.http) = {
+      patch: "/v1/products/{id}"
+      body: "*"
+    };
+  }
+  
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse) {
+    option (natsmicro.endpoint) = {
+      metadata: {
+        key: "operation"
+        value: "delete"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "false"
+      }
+      metadata: {
+        key: "idempotent"
+        value: "true"
+      }
+    };
+    option (google.api.http) = {
+      delete: "/v1/products/{id}"
+    };
+  }
+  
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse) {
+    option (natsmicro.endpoint) = {
+      timeout: {seconds: 60}  // Search needs more time - 60 second timeout
+      metadata: {
+        key: "operation"
+        value: "read"
+      }
+      metadata: {
+        key: "cacheable"
+        value: "true"
+      }
+      metadata: {
+        key: "cache_ttl"
+        value: "60"
+      }
+      metadata: {
+        key: "expensive"
+        value: "true"
+      }
+    };
+    option (google.api.http) = {
+      get: "/v1/products"
+    };
+  }
+}
+
+enum ProductCategory {
+  CATEGORY_UNSPECIFIED = 0;
+  CATEGORY_ELECTRONICS = 1;
+  CATEGORY_CLOTHING = 2;
+  CATEGORY_BOOKS = 3;
+  CATEGORY_FOOD = 4;
+  CATEGORY_HOME = 5;
+}
+
+message Product {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string sku = 4;
+  ProductCategory category = 5;
+  common.types.v1.Money price = 6;
+  int32 stock_quantity = 7;
+  repeated string image_urls = 8;
+  map<string, string> attributes = 9; // color, size, etc.
+  common.types.v1.Status status = 10;
+  common.metadata.v1.Metadata metadata = 11;
+}
+
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  string sku = 3;
+  ProductCategory category = 4;
+  common.types.v1.Money price = 5;
+  int32 stock_quantity = 6;
+  repeated string image_urls = 7;
+  map<string, string> attributes = 8;
+}
+
+message CreateProductResponse {
+  Product product = 1;
+}
+
+message GetProductRequest {
+  string id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message UpdateProductRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  common.types.v1.Money price = 4;
+  int32 stock_quantity = 5;
+  repeated string image_urls = 6;
+  map<string, string> attributes = 7;
+}
+
+message UpdateProductResponse {
+  Product product = 1;
+}
+
+message DeleteProductRequest {
+  string id = 1;
+}
+
+message DeleteProductResponse {
+  bool success = 1;
+}
+
+message SearchProductsRequest {
+  string query = 1;
+  ProductCategory category = 2;
+  common.types.v1.Money min_price = 3;
+  common.types.v1.Money max_price = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+message SearchProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
