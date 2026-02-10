@@ -139,7 +139,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 			TTL:         {{$eopts.KVStore.TTL.Nanoseconds}} * time.Nanosecond,
 			{{- end}}
 		}); err != nil {
-			log.Printf("[nats-micro] WARN: failed to create KV bucket \"{{$eopts.KVStore.Bucket}}\": %v", err)
+			fmt.Fprintf(os.Stderr, "[nats-micro] WARN: failed to create KV bucket \"{{$eopts.KVStore.Bucket}}\": %v\n", err)
 		}
 		{{- end}}
 		{{- if $eopts.ObjectStore}}
@@ -153,7 +153,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 			TTL:         {{$eopts.ObjectStore.TTL.Nanoseconds}} * time.Nanosecond,
 			{{- end}}
 		}); err != nil {
-			log.Printf("[nats-micro] WARN: failed to create Object Store bucket \"{{$eopts.ObjectStore.Bucket}}\": %v", err)
+			fmt.Fprintf(os.Stderr, "[nats-micro] WARN: failed to create Object Store bucket \"{{$eopts.ObjectStore.Bucket}}\": %v\n", err)
 		}
 		{{- end}}
 		{{- end}}
@@ -344,10 +344,10 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		kvKey := {{ResolveKeyTemplateGo $endpointOpts.KVStore.KeyTemplate .}}
 		kv, kvErr := h.js.KeyValue(ctx, "{{$endpointOpts.KVStore.Bucket}}")
 		if kvErr != nil {
-			log.Printf("[nats-micro] WARN: KV bucket \"{{$endpointOpts.KVStore.Bucket}}\" not available for {{.GoName}}: %v", kvErr)
+			fmt.Fprintf(os.Stderr, "[nats-micro] WARN: KV bucket \"{{$endpointOpts.KVStore.Bucket}}\" not available for {{.GoName}}: %v\n", kvErr)
 		} else {
 			if _, kvErr = kv.Put(ctx, kvKey, data); kvErr != nil {
-				log.Printf("[nats-micro] WARN: failed to persist {{.GoName}} response to KV: %v", kvErr)
+				fmt.Fprintf(os.Stderr, "[nats-micro] WARN: failed to persist {{.GoName}} response to KV: %v\n", kvErr)
 			}
 		}
 	}
@@ -362,10 +362,10 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		objKey := {{ResolveKeyTemplateGo $endpointOpts.ObjectStore.KeyTemplate .}}
 		obj, objErr := h.js.ObjectStore(ctx, "{{$endpointOpts.ObjectStore.Bucket}}")
 		if objErr != nil {
-			log.Printf("[nats-micro] WARN: Object Store bucket \"{{$endpointOpts.ObjectStore.Bucket}}\" not available for {{.GoName}}: %v", objErr)
+			fmt.Fprintf(os.Stderr, "[nats-micro] WARN: Object Store bucket \"{{$endpointOpts.ObjectStore.Bucket}}\" not available for {{.GoName}}: %v\n", objErr)
 		} else {
 			if _, objErr = obj.PutBytes(ctx, objKey, data); objErr != nil {
-				log.Printf("[nats-micro] WARN: failed to persist {{.GoName}} response to Object Store: %v", objErr)
+				fmt.Fprintf(os.Stderr, "[nats-micro] WARN: failed to persist {{.GoName}} response to Object Store: %v\n", objErr)
 			}
 		}
 	}
@@ -480,7 +480,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 	resp, err := h.impl.{{.GoName}}(ctx, stream)
 	if err != nil {
 		// Cannot send error via req since we already responded with ack
-		log.Printf("[nats-micro] ERROR: {{.GoName}} client stream handler failed: %v", err)
+		fmt.Fprintf(os.Stderr, "[nats-micro] ERROR: {{.GoName}} client stream handler failed: %v\n", err)
 		return
 	}
 
@@ -492,7 +492,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		data, err = proto.Marshal(resp)
 	}
 	if err != nil {
-		log.Printf("[nats-micro] ERROR: failed to marshal {{.GoName}} response: %v", err)
+		fmt.Fprintf(os.Stderr, "[nats-micro] ERROR: failed to marshal {{.GoName}} response: %v\n", err)
 		return
 	}
 
