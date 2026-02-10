@@ -27,6 +27,14 @@ gen/nats/micro/*
 examples/complex-go/gen/
 examples/simple-ts/gen/
 examples/simple-py/gen/
+examples/kvstore-go/gen/
+examples/streaming-go/gen/
+
+# Node / VitePress
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+package-lock.json
 
 # Python
 examples/simple-py/venv/
