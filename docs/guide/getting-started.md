@@ -24,6 +24,17 @@ Write standard `.proto` files, run `buf generate`, and get production-ready NATS
 go install github.com/toyz/protoc-gen-nats-micro/cmd/protoc-gen-nats-micro@latest
 ```
 
+## Proto Dependencies
+
+Add the natsmicro proto options to your `buf.yaml`:
+
+```yaml
+deps:
+  - buf.build/helba/natsmicro
+```
+
+This lets you use `import "natsmicro/options.proto"` in your proto files without copying anything locally.
+
 ## Why not gRPC / nRPC?
 
 |                        | protoc-gen-nats-micro    | gRPC                  | nRPC      |

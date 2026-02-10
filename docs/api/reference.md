@@ -146,6 +146,15 @@ From highest to lowest priority:
 
 ## Proto Import
 
+Add the dependency to your `buf.yaml`:
+
+```yaml
+deps:
+  - buf.build/helba/natsmicro
+```
+
+Then import in your `.proto` files:
+
 ```protobuf
 import "natsmicro/options.proto";
 ```
