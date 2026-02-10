@@ -1,9 +1,9 @@
 version: v2
 modules:
   - path: extensions/proto
-    name: buf.build/helba/natsmicro
+    name: buf.build/toyz/natsmicro
   - path: examples/protos
-    name: buf.build/helba/nats-micro-examples
+    name: buf.build/toyz/nats-micro-examples
 deps:
   - buf.build/googleapis/googleapis
 breaking:

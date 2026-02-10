@@ -150,7 +150,7 @@ Add the dependency to your `buf.yaml`:
 
 ```yaml
 deps:
-  - buf.build/helba/natsmicro
+  - buf.build/toyz/natsmicro
 ```
 
 Then import in your `.proto` files:

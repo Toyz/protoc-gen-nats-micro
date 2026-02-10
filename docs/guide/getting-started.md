@@ -30,7 +30,7 @@ Add the natsmicro proto options to your `buf.yaml`:
 
 ```yaml
 deps:
-  - buf.build/helba/natsmicro
+  - buf.build/toyz/natsmicro
 ```
 
 This lets you use `import "natsmicro/options.proto"` in your proto files without copying anything locally.
