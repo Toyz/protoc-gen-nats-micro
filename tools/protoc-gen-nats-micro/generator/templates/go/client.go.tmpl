@@ -8,9 +8,11 @@ type {{.Service.GoName}}NatsClientInterface interface {
   {{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
 {{- if $endpointOpts.KVStore}}
   Get{{.GoName}}FromKV(ctx context.Context, key string) (*{{.Output.GoIdent.GoName}}, error)
+  Put{{.GoName}}ToKV(ctx context.Context, key string, val *{{.Output.GoIdent.GoName}}) error
 {{- end}}
 {{- if $endpointOpts.ObjectStore}}
   Get{{.GoName}}FromObjectStore(ctx context.Context, key string) (*{{.Output.GoIdent.GoName}}, error)
+  Put{{.GoName}}ToObjectStore(ctx context.Context, key string, val *{{.Output.GoIdent.GoName}}) error
 {{- end}}
 {{- end}}
 {{- end}}
@@ -179,6 +181,32 @@ func (c *{{$.Service.GoName}}NatsClient) Get{{.GoName}}FromKV(ctx context.Contex
   }
   return &resp, nil
 }
+
+// Put{{.GoName}}ToKV writes a {{.Output.GoIdent.GoName}} directly to the KV Store.
+// Requires the client to be created with WithNatsClientJetStream.
+func (c *{{$.Service.GoName}}NatsClient) Put{{.GoName}}ToKV(ctx context.Context, key string, val *{{.Output.GoIdent.GoName}}) error {
+  if c.js == nil {
+    return errors.New("JetStream not configured; use WithNatsClientJetStream to enable KV writes")
+  }
+  var data []byte
+  var err error
+  if c.useJSON {
+    data, err = protojson.Marshal(val)
+  } else {
+    data, err = proto.Marshal(val)
+  }
+  if err != nil {
+    return fmt.Errorf("failed to encode value: %w", err)
+  }
+  kv, err := c.js.KeyValue(ctx, "{{$endpointOpts.KVStore.Bucket}}")
+  if err != nil {
+    return fmt.Errorf("failed to open KV bucket \"{{$endpointOpts.KVStore.Bucket}}\": %w", err)
+  }
+  if _, err := kv.Put(ctx, key, data); err != nil {
+    return fmt.Errorf("KV put failed for key %q: %w", key, err)
+  }
+  return nil
+}
 {{- end}}
 
 {{- if $endpointOpts.ObjectStore}}
@@ -209,6 +237,32 @@ func (c *{{$.Service.GoName}}NatsClient) Get{{.GoName}}FromObjectStore(ctx conte
     }
   }
   return &resp, nil
+}
+
+// Put{{.GoName}}ToObjectStore writes a {{.Output.GoIdent.GoName}} directly to the Object Store.
+// Requires the client to be created with WithNatsClientJetStream.
+func (c *{{$.Service.GoName}}NatsClient) Put{{.GoName}}ToObjectStore(ctx context.Context, key string, val *{{.Output.GoIdent.GoName}}) error {
+  if c.js == nil {
+    return errors.New("JetStream not configured; use WithNatsClientJetStream to enable Object Store writes")
+  }
+  var data []byte
+  var err error
+  if c.useJSON {
+    data, err = protojson.Marshal(val)
+  } else {
+    data, err = proto.Marshal(val)
+  }
+  if err != nil {
+    return fmt.Errorf("failed to encode value: %w", err)
+  }
+  obj, err := c.js.ObjectStore(ctx, "{{$endpointOpts.ObjectStore.Bucket}}")
+  if err != nil {
+    return fmt.Errorf("failed to open Object Store bucket \"{{$endpointOpts.ObjectStore.Bucket}}\": %w", err)
+  }
+  if _, err := obj.PutBytes(ctx, key, data); err != nil {
+    return fmt.Errorf("Object Store put failed for key %q: %w", key, err)
+  }
+  return nil
 }
 {{- end}}
 

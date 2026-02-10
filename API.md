@@ -6,6 +6,8 @@ Complete reference for `protoc-gen-nats-micro` proto extension options.
 
 - [Service Options](#service-options)
 - [Endpoint Options](#endpoint-options)
+- [KV Store & Object Store](#kv-store--object-store)
+- [Key Templates](#key-templates)
 - [Complete Examples](#complete-examples)
 - [Generated Code Reference](#generated-code-reference)
 
@@ -293,6 +295,150 @@ rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
 - Keep keys consistent across services
 - Document metadata conventions in your team
 
+## KV Store & Object Store
+
+Auto-persist RPC responses to NATS JetStream KV Store or Object Store. Clients get convenience methods to read cached data directly — no RPC needed.
+
+### kv_store
+
+**Extension:** `natsmicro.kv_store`
+
+Automatically persists the serialized RPC response to a NATS KV bucket after the handler responds.
+
+```protobuf
+rpc SaveProfile(SaveProfileRequest) returns (ProfileResponse) {
+  option (natsmicro.kv_store) = {
+    bucket: "user_profiles"       // KV bucket name
+    key_template: "user.{id}"     // Key with {field} placeholders from request
+    ttl: {seconds: 3600}          // Auto-expire after 1 hour (optional)
+    description: "User profile cache"  // Bucket description (optional)
+    max_history: 5                // Keep 5 revisions per key (optional)
+  };
+}
+```
+
+**Fields:**
+
+| Field          | Type       | Description                                                                              |
+| -------------- | ---------- | ---------------------------------------------------------------------------------------- |
+| `bucket`       | `string`   | **Required.** Name of the KV bucket to persist to.                                       |
+| `key_template` | `string`   | **Required.** Key pattern with `{field}` placeholders resolved from the request message. |
+| `ttl`          | `Duration` | Optional. Auto-expire entries after this duration.                                       |
+| `description`  | `string`   | Optional. Human-readable bucket description.                                             |
+| `max_history`  | `int32`    | Optional. Revisions to keep per key (default 1, max 64).                                 |
+| `client_only`  | `bool`     | Optional. Skip server-side auto-persist; only generate client read/write methods.        |
+
+**What happens at runtime:**
+
+1. Handler processes the request and returns a response
+2. Response is serialized (protobuf or JSON)
+3. Generated code resolves the key template using request fields
+4. Serialized response is written to the KV bucket (unless `client_only: true`)
+5. Response is sent to the client normally
+
+**Generated client methods:**
+
+- `Get<Method>FromKV(key)` — read a value directly from the KV bucket
+- `Put<Method>ToKV(key, value)` — write a value directly to the KV bucket
+
+**Graceful degradation:** If no JetStream context is provided via `WithJetStream()`, KV writes and bucket creation are silently skipped. If the write fails, a warning is logged but the RPC still succeeds.
+
+**Auto-creation:** When `WithJetStream(js)` is provided, buckets are automatically created (or updated) during service registration using `CreateOrUpdateKeyValue` with the configured options. No manual bucket setup required.
+
+### object_store
+
+**Extension:** `natsmicro.object_store`
+
+Same pattern as `kv_store` but uses NATS Object Store (for larger payloads).
+
+```protobuf
+rpc GenerateReport(GenerateReportRequest) returns (ReportResponse) {
+  option (natsmicro.object_store) = {
+    bucket: "reports"
+    key_template: "report.{id}"
+    ttl: {seconds: 86400}         // Auto-expire after 24 hours (optional)
+    description: "Generated reports cache"  // Bucket description (optional)
+  };
+}
+```
+
+**Fields:**
+
+| Field          | Type       | Description                                                                       |
+| -------------- | ---------- | --------------------------------------------------------------------------------- |
+| `bucket`       | `string`   | **Required.** Name of the Object Store bucket.                                    |
+| `key_template` | `string`   | **Required.** Key pattern with `{field}` placeholders.                            |
+| `ttl`          | `Duration` | Optional. Auto-expire objects after this duration.                                |
+| `description`  | `string`   | Optional. Human-readable bucket description.                                      |
+| `client_only`  | `bool`     | Optional. Skip server-side auto-persist; only generate client read/write methods. |
+
+**Generated client methods:**
+
+- `Get<Method>FromObjectStore(key)` — read a value directly from the Object Store bucket
+- `Put<Method>ToObjectStore(key, value)` — write a value directly to the Object Store bucket
+
+**When to use KV vs Object Store:**
+
+| Feature           | KV Store              | Object Store                |
+| ----------------- | --------------------- | --------------------------- |
+| Max value size    | ~1MB (configurable)   | Unlimited (chunked)         |
+| Use case          | Small structured data | Large blobs, files, reports |
+| History/revisions | Yes                   | Yes                         |
+| Watch/notify      | Yes                   | No                          |
+
+## Key Templates
+
+Key templates use `{field}` placeholders that resolve to fields on the RPC request message.
+
+### Syntax
+
+```
+user.{id}              → user.123
+profile.{user_id}.{region} → profile.abc.us-west
+```
+
+Placeholders must reference top-level fields on the input message. Nested fields are not supported.
+
+### Compile-Time Validation
+
+Key templates are **validated at code generation time**. If a placeholder references a field that doesn't exist on the input message, the generator fails with a clear error:
+
+```
+key_template "user.{bad_field}" references field {bad_field}
+which does not exist on input message SaveProfileRequest
+(available fields: [id, name, email, bio])
+```
+
+This prevents runtime errors from typos or schema drift.
+
+### Examples
+
+```protobuf
+message SaveProfileRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+// ✅ Valid — {id} exists on SaveProfileRequest
+option (natsmicro.kv_store) = {
+  bucket: "profiles"
+  key_template: "user.{id}"
+};
+
+// ✅ Valid — multiple placeholders
+option (natsmicro.kv_store) = {
+  bucket: "profiles"
+  key_template: "{name}.{id}"
+};
+
+// ❌ Invalid — {user_id} does not exist
+option (natsmicro.kv_store) = {
+  bucket: "profiles"
+  key_template: "user.{user_id}"
+};
+```
+
 ## Complete Examples
 
 ### Basic Service
@@ -451,6 +597,73 @@ Messages sent as:
 
 Instead of binary protobuf.
 
+### KV Store & Object Store Service
+
+Auto-persist RPC responses to NATS JetStream:
+
+```protobuf
+syntax = "proto3";
+package kvstore_demo.v1;
+import "natsmicro/options.proto";
+
+service KVStoreDemoService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1.kvdemo"
+    name: "kvstore_demo_service"
+    version: "1.0.0"
+  };
+
+  // Response auto-persisted to KV bucket "user_profiles" with key "user.{id}"
+  rpc SaveProfile(SaveProfileRequest) returns (ProfileResponse) {
+    option (natsmicro.endpoint) = { timeout: {seconds: 5} };
+    option (natsmicro.kv_store) = {
+      bucket: "user_profiles"
+      key_template: "user.{id}"
+    };
+  }
+
+  // Standard RPC — no auto-persistence
+  rpc GetProfile(GetProfileRequest) returns (ProfileResponse) {
+    option (natsmicro.endpoint) = { timeout: {seconds: 5} };
+  }
+
+  // Response auto-persisted to Object Store bucket "reports"
+  rpc GenerateReport(GenerateReportRequest) returns (ReportResponse) {
+    option (natsmicro.endpoint) = { timeout: {seconds: 30} };
+    option (natsmicro.object_store) = {
+      bucket: "reports"
+      key_template: "report.{id}"
+    };
+  }
+}
+```
+
+**Server (Go):**
+
+```go
+// Enable auto-persistence by providing a JetStream context
+svc, err := RegisterKVStoreDemoServiceHandlers(nc, impl,
+    WithJetStream(js),  // ← enables KV/ObjectStore auto-persist
+)
+```
+
+**Client (Go):**
+
+```go
+client := NewKVStoreDemoServiceNatsClient(nc,
+    WithNatsClientJetStream(js),  // ← enables direct KV/ObjectStore reads
+)
+
+// Normal RPC — server auto-persists the response
+profile, err := client.SaveProfile(ctx, req)
+
+// Direct KV read — no RPC, reads from NATS KV bucket
+cached, err := client.GetSaveProfileFromKV(ctx, "user.123")
+
+// Direct Object Store read — no RPC
+report, err := client.GetGenerateReportFromObjectStore(ctx, "report.456")
+```
+
 ## Generated Code Reference
 
 ### Go
@@ -474,6 +687,7 @@ func WithTimeout(timeout time.Duration) RegisterOption
 func WithMetadata(metadata map[string]string) RegisterOption
 func WithAdditionalMetadata(metadata map[string]string) RegisterOption
 func WithServerInterceptor(interceptor UnaryServerInterceptor) RegisterOption
+func WithJetStream(js jetstream.JetStream) RegisterOption // Enable KV/ObjectStore auto-persist
 ```
 
 #### Client Creation
@@ -488,6 +702,17 @@ func NewProductServiceNatsClient(
 // NatsClientOption types
 func WithNatsClientSubjectPrefix(prefix string) NatsClientOption
 func WithClientInterceptor(interceptor UnaryClientInterceptor) NatsClientOption
+func WithNatsClientJetStream(js jetstream.JetStream) NatsClientOption // Enable KV/ObjectStore reads
+```
+
+#### KV Store & Object Store Convenience Methods
+
+```go
+// Generated on the client for each method with kv_store option
+func (c *Client) Get<MethodName>FromKV(ctx context.Context, key string) (*ResponseType, error)
+
+// Generated on the client for each method with object_store option
+func (c *Client) Get<MethodName>FromObjectStore(ctx context.Context, key string) (*ResponseType, error)
 ```
 
 #### Error Handling
@@ -685,4 +910,5 @@ Final timeouts:
 - [README.md](README.md) - Project overview and quick start
 - [TYPESCRIPT.md](TYPESCRIPT.md) - TypeScript-specific documentation
 - [extensions/proto/natsmicro/options.proto](extensions/proto/natsmicro/options.proto) - Proto extension definitions
-- [examples/](examples/) - Working code examples
+- [examples/complex-go/](examples/complex-go/) - Interceptors, headers, error handling
+- [examples/kvstore-go/](examples/kvstore-go/) - KV Store & Object Store auto-persistence

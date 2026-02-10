@@ -131,6 +131,47 @@ export async function register{{.Service.GoName}}Handlers(
   // Create handlers
   const handlers = new {{.Service.GoName}}Handlers(impl, timeout, chainedInterceptor, options?.jetstream);
 
+  // Auto-create KV and Object Store buckets if JetStream is available
+  if (options?.jetstream) {
+    const js = options.jetstream;
+    {{- range .Service.Methods}}
+    {{- $eopts := GetEndpointOptions .}}
+    {{- if $eopts.KVStore}}
+    // Auto-create KV bucket "{{$eopts.KVStore.Bucket}}" for {{.GoName}}
+    try {
+      await js.views.kv('{{$eopts.KVStore.Bucket}}', {
+        {{- if $eopts.KVStore.Description}}
+        description: '{{$eopts.KVStore.Description}}',
+        {{- end}}
+        {{- if $eopts.KVStore.MaxHistory}}
+        history: {{$eopts.KVStore.MaxHistory}},
+        {{- end}}
+        {{- if $eopts.KVStore.TTL.Nanoseconds}}
+        ttl: {{$eopts.KVStore.TTL.Milliseconds}},
+        {{- end}}
+      });
+    } catch (e) {
+      console.warn(`[nats-micro] WARN: failed to create KV bucket "{{$eopts.KVStore.Bucket}}": ${e}`);
+    }
+    {{- end}}
+    {{- if $eopts.ObjectStore}}
+    // Auto-create Object Store bucket "{{$eopts.ObjectStore.Bucket}}" for {{.GoName}}
+    try {
+      await js.views.os('{{$eopts.ObjectStore.Bucket}}', {
+        {{- if $eopts.ObjectStore.Description}}
+        description: '{{$eopts.ObjectStore.Description}}',
+        {{- end}}
+        {{- if $eopts.ObjectStore.TTL.Nanoseconds}}
+        ttl: {{$eopts.ObjectStore.TTL.Milliseconds}},
+        {{- end}}
+      });
+    } catch (e) {
+      console.warn(`[nats-micro] WARN: failed to create Object Store bucket "{{$eopts.ObjectStore.Bucket}}": ${e}`);
+    }
+    {{- end}}
+    {{- end}}
+  }
+
   // Add endpoints
   const group = subjectPrefix ? service.addGroup(subjectPrefix) : service;
   
@@ -215,6 +256,7 @@ class {{.Service.GoName}}Handlers {
 
       {{- /* KV Store persistence */}}
       {{- if $endpointOpts.KVStore}}
+      {{- if not $endpointOpts.KVStore.ClientOnly}}
       // Auto-persist response to KV Store (bucket: "{{$endpointOpts.KVStore.Bucket}}")
       if (this.js) {
         try {
@@ -226,9 +268,11 @@ class {{.Service.GoName}}Handlers {
         }
       }
       {{- end}}
+      {{- end}}
 
       {{- /* Object Store persistence */}}
       {{- if $endpointOpts.ObjectStore}}
+      {{- if not $endpointOpts.ObjectStore.ClientOnly}}
       // Auto-persist response to Object Store (bucket: "{{$endpointOpts.ObjectStore.Bucket}}")
       if (this.js) {
         try {
@@ -239,6 +283,7 @@ class {{.Service.GoName}}Handlers {
           console.warn(`[nats-micro] WARN: failed to persist {{.GoName}} to Object Store: ${objErr}`);
         }
       }
+      {{- end}}
       {{- end}}
 
       msg.respond(data);

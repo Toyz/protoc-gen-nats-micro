@@ -77,6 +77,45 @@ async def register_{{ToSnakeCase $serviceName}}(
     # Create service
     service = await micro.add_service(nc, config)
     
+    # Auto-create KV and Object Store buckets if JetStream is available
+    if js_context is not None:
+        {{- range .Service.Methods}}
+        {{- $eopts := GetEndpointOptions .}}
+        {{- if $eopts.KVStore}}
+        # Auto-create KV bucket "{{$eopts.KVStore.Bucket}}" for {{.GoName}}
+        try:
+            await js_context.create_key_value(nats.js.api.KeyValueConfig(
+                bucket="{{$eopts.KVStore.Bucket}}",
+                {{- if $eopts.KVStore.Description}}
+                description="{{$eopts.KVStore.Description}}",
+                {{- end}}
+                {{- if $eopts.KVStore.MaxHistory}}
+                history={{$eopts.KVStore.MaxHistory}},
+                {{- end}}
+                {{- if $eopts.KVStore.TTL.Nanoseconds}}
+                ttl={{$eopts.KVStore.TTL.Seconds}},
+                {{- end}}
+            ))
+        except Exception as e:
+            logging.warning(f"[nats-micro] WARN: failed to create KV bucket '{{$eopts.KVStore.Bucket}}': {e}")
+        {{- end}}
+        {{- if $eopts.ObjectStore}}
+        # Auto-create Object Store bucket "{{$eopts.ObjectStore.Bucket}}" for {{.GoName}}
+        try:
+            await js_context.create_object_store(nats.js.api.ObjectStoreConfig(
+                bucket="{{$eopts.ObjectStore.Bucket}}",
+                {{- if $eopts.ObjectStore.Description}}
+                description="{{$eopts.ObjectStore.Description}}",
+                {{- end}}
+                {{- if $eopts.ObjectStore.TTL.Nanoseconds}}
+                ttl={{$eopts.ObjectStore.TTL.Seconds}},
+                {{- end}}
+            ))
+        except Exception as e:
+            logging.warning(f"[nats-micro] WARN: failed to create Object Store bucket '{{$eopts.ObjectStore.Bucket}}': {e}")
+        {{- end}}
+        {{- end}}
+    
     {{- range .Service.Methods}}
     {{- $methodOptions := GetEndpointOptions .}}
     {{- if not $methodOptions.Skip}}
@@ -137,6 +176,7 @@ async def register_{{ToSnakeCase $serviceName}}(
             
             {{- /* KV Store persistence */}}
             {{- if $methodOptions.KVStore}}
+            {{- if not $methodOptions.KVStore.ClientOnly}}
             # Auto-persist response to KV Store (bucket: "{{$methodOptions.KVStore.Bucket}}")
             if js_context is not None:
                 try:
@@ -147,9 +187,11 @@ async def register_{{ToSnakeCase $serviceName}}(
                     import logging
                     logging.warning(f"[nats-micro] KV persist failed for {{.GoName}}: {kv_err}")
             {{- end}}
+            {{- end}}
             
             {{- /* Object Store persistence */}}
             {{- if $methodOptions.ObjectStore}}
+            {{- if not $methodOptions.ObjectStore.ClientOnly}}
             # Auto-persist response to Object Store (bucket: "{{$methodOptions.ObjectStore.Bucket}}")
             if js_context is not None:
                 try:
@@ -159,6 +201,7 @@ async def register_{{ToSnakeCase $serviceName}}(
                 except Exception as obj_err:
                     import logging
                     logging.warning(f"[nats-micro] Object Store persist failed for {{.GoName}}: {obj_err}")
+            {{- end}}
             {{- end}}
             
             # Add response headers from handler/interceptors

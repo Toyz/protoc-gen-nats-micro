@@ -169,6 +169,30 @@ class {{$serviceName}}Client:
         {{- else}}
         return pb.{{.Output.GoIdent.GoName}}.FromString(entry.value)
         {{- end}}
+    
+    async def put_{{ToSnakeCase .GoName}}_to_kv(
+        self,
+        key: str,
+        val: pb.{{.Output.GoIdent.GoName}}
+    ) -> None:
+        """Write a {{.Output.GoIdent.GoName}} directly to the KV Store.
+        
+        Args:
+            key: The KV key
+            val: The value to store
+        
+        Raises:
+            RuntimeError: If JetStream is not configured
+        """
+        if self._js is None:
+            raise RuntimeError("JetStream not configured; use with_client_jetstream to enable KV writes")
+        {{- if $serviceOptions.UseJSON}}
+        data = MessageToJson(val).encode()
+        {{- else}}
+        data = val.SerializeToString()
+        {{- end}}
+        kv = await self._js.key_value("{{$methodOptions.KVStore.Bucket}}")
+        await kv.put(key, data)
     {{- end}}
     
     {{- if $methodOptions.ObjectStore}}
@@ -194,6 +218,30 @@ class {{$serviceName}}Client:
         {{- else}}
         return pb.{{.Output.GoIdent.GoName}}.FromString(data)
         {{- end}}
+    
+    async def put_{{ToSnakeCase .GoName}}_to_object_store(
+        self,
+        key: str,
+        val: pb.{{.Output.GoIdent.GoName}}
+    ) -> None:
+        """Write a {{.Output.GoIdent.GoName}} directly to the Object Store.
+        
+        Args:
+            key: The object key
+            val: The value to store
+        
+        Raises:
+            RuntimeError: If JetStream is not configured
+        """
+        if self._js is None:
+            raise RuntimeError("JetStream not configured; use with_client_jetstream to enable Object Store writes")
+        {{- if $serviceOptions.UseJSON}}
+        data = MessageToJson(val).encode()
+        {{- else}}
+        data = val.SerializeToString()
+        {{- end}}
+        obj = await self._js.object_store("{{$methodOptions.ObjectStore.Bucket}}")
+        await obj.put(key, data)
     {{- end}}
     {{- end}}
     {{- end}}

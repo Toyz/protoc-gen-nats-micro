@@ -12,30 +12,31 @@ message ServiceOptions {
   // The NATS subject prefix for all endpoints in this service
   // Optional: defaults to snake_case of service name (e.g., "product_service")
   string subject_prefix = 1;
-  
+
   // Service name (optional, defaults to snake_case of service name)
   string name = 2;
-  
+
   // Service version (optional, defaults to "1.0.0")
   string version = 3;
-  
+
   // Service description (optional)
   string description = 4;
-  
+
   // Service metadata (optional, key-value pairs for service discovery)
   map<string, string> metadata = 5;
-  
+
   // Request timeout (optional, 0 means no timeout)
   // This is the default timeout for all endpoints in this service
   google.protobuf.Duration timeout = 6;
-  
+
   // Skip code generation for this service (optional, defaults to false)
   // Set to true to exclude this service from NATS micro generation
   bool skip = 7;
-  
+
   // Use JSON encoding instead of binary protobuf (optional, defaults to false)
-  // When true, messages are marshaled/unmarshaled using protojson (human-readable)
-  // When false (default), messages use binary protobuf encoding (more efficient)
+  // When true, messages are marshaled/unmarshaled using protojson
+  // (human-readable) When false (default), messages use binary protobuf
+  // encoding (more efficient)
   bool json = 8;
 }
 
@@ -44,19 +45,20 @@ message EndpointOptions {
   // Request timeout (optional, 0 means use service default)
   // Overrides the service-level timeout for this specific endpoint
   google.protobuf.Duration timeout = 1;
-  
+
   // Skip code generation for this endpoint (optional, defaults to false)
   // Set to true to exclude this specific endpoint from NATS micro generation
   bool skip = 2;
-  
-  // Endpoint metadata (optional, key-value pairs for endpoint-specific metadata)
-  // This metadata is passed to the NATS micro endpoint registration
+
+  // Endpoint metadata (optional, key-value pairs for endpoint-specific
+  // metadata) This metadata is passed to the NATS micro endpoint registration
   map<string, string> metadata = 3;
 }
 
 // KV Store options for RPC methods
 // When set, the server handler automatically persists the response
 // into a NATS JetStream KV bucket after processing.
+// The bucket is auto-created during service registration if it doesn't exist.
 message KVStoreOptions {
   // KV bucket name (e.g., "user_profiles")
   string bucket = 1;
@@ -64,17 +66,43 @@ message KVStoreOptions {
   // Key template with {field} placeholders resolved from the request message
   // e.g., "user.{id}" extracts the 'id' field from the request
   string key_template = 2;
+
+  // TTL for entries — auto-expire cached data after this duration (optional)
+  google.protobuf.Duration ttl = 3;
+
+  // Human-readable description for the bucket (optional)
+  string description = 4;
+
+  // Number of revisions to keep per key (optional, default 1, max 64)
+  // Set > 1 to enable revision history for audit trails or versioned data
+  int32 max_history = 5;
+
+  // If true, skip server-side auto-persist — only generate client read/write
+  // methods Use this when you want direct client access to KV without RPC
+  // involvement
+  bool client_only = 6;
 }
 
 // Object Store options for RPC methods
 // When set, the handler stores/retrieves large binary objects
 // from a NATS JetStream Object Store bucket.
+// The bucket is auto-created during service registration if it doesn't exist.
 message ObjectStoreOptions {
   // Object store bucket name (e.g., "firmware_binaries")
   string bucket = 1;
 
   // Key template with {field} placeholders (optional, defaults to method name)
   string key_template = 2;
+
+  // TTL for objects — auto-expire after this duration (optional)
+  google.protobuf.Duration ttl = 3;
+
+  // Human-readable description for the bucket (optional)
+  string description = 4;
+
+  // If true, skip server-side auto-persist — only generate client read/write
+  // methods
+  bool client_only = 5;
 }
 
 // Streaming options for fine-tuning streaming RPC behavior
@@ -86,9 +114,7 @@ message StreamOptions {
   bool ordered = 2;
 }
 
-extend google.protobuf.ServiceOptions {
-  ServiceOptions service = 50001;
-}
+extend google.protobuf.ServiceOptions { ServiceOptions service = 50001; }
 
 extend google.protobuf.MethodOptions {
   EndpointOptions endpoint = 50002;

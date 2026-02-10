@@ -104,6 +104,45 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 		js:             cfg.js,
 	}
 
+	// Auto-create KV and Object Store buckets if JetStream is available
+	if cfg.js != nil {
+		ctx := context.Background()
+		{{- range .Service.Methods}}
+		{{- $eopts := GetEndpointOptions .}}
+		{{- if $eopts.KVStore}}
+		// Auto-create KV bucket "{{$eopts.KVStore.Bucket}}" for {{.GoName}}
+		if _, err := cfg.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket:      "{{$eopts.KVStore.Bucket}}",
+			{{- if $eopts.KVStore.Description}}
+			Description: "{{$eopts.KVStore.Description}}",
+			{{- end}}
+			{{- if $eopts.KVStore.MaxHistory}}
+			MaxHistory:  {{$eopts.KVStore.MaxHistory}},
+			{{- end}}
+			{{- if $eopts.KVStore.TTL.Nanoseconds}}
+			TTL:         {{$eopts.KVStore.TTL.Nanoseconds}} * time.Nanosecond,
+			{{- end}}
+		}); err != nil {
+			log.Printf("[nats-micro] WARN: failed to create KV bucket \"{{$eopts.KVStore.Bucket}}\": %v", err)
+		}
+		{{- end}}
+		{{- if $eopts.ObjectStore}}
+		// Auto-create Object Store bucket "{{$eopts.ObjectStore.Bucket}}" for {{.GoName}}
+		if _, err := cfg.js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+			Bucket:      "{{$eopts.ObjectStore.Bucket}}",
+			{{- if $eopts.ObjectStore.Description}}
+			Description: "{{$eopts.ObjectStore.Description}}",
+			{{- end}}
+			{{- if $eopts.ObjectStore.TTL.Nanoseconds}}
+			TTL:         {{$eopts.ObjectStore.TTL.Nanoseconds}} * time.Nanosecond,
+			{{- end}}
+		}); err != nil {
+			log.Printf("[nats-micro] WARN: failed to create Object Store bucket \"{{$eopts.ObjectStore.Bucket}}\": %v", err)
+		}
+		{{- end}}
+		{{- end}}
+	}
+
 	// Map of endpoint names to their handlers
 	endpoints := map[string]micro.Handler{
 {{range .Service.Methods -}}
@@ -281,6 +320,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 
 	{{- /* KV Store persistence: auto-persist response after successful RPC */}}
 	{{- if $endpointOpts.KVStore}}
+	{{- if not $endpointOpts.KVStore.ClientOnly}}
 	// Auto-persist response to KV Store (bucket: "{{$endpointOpts.KVStore.Bucket}}")
 	if h.js != nil {
 		kvKey := {{ResolveKeyTemplateGo $endpointOpts.KVStore.KeyTemplate .}}
@@ -294,9 +334,11 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		}
 	}
 	{{- end}}
+	{{- end}}
 
 	{{- /* Object Store persistence: auto-persist response to Object Store */}}
 	{{- if $endpointOpts.ObjectStore}}
+	{{- if not $endpointOpts.ObjectStore.ClientOnly}}
 	// Auto-persist response to Object Store (bucket: "{{$endpointOpts.ObjectStore.Bucket}}")
 	if h.js != nil {
 		objKey := {{ResolveKeyTemplateGo $endpointOpts.ObjectStore.KeyTemplate .}}
@@ -309,6 +351,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 			}
 		}
 	}
+	{{- end}}
 	{{- end}}
 
 	if len(outgoingHeaders) > 0 {

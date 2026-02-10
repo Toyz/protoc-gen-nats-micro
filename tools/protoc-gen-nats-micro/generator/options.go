@@ -83,14 +83,21 @@ type EndpointOptions struct {
 
 // KVStoreOpts contains KV store persistence options for a method
 type KVStoreOpts struct {
-	Bucket      string // KV bucket name
-	KeyTemplate string // Key template with {field} placeholders
+	Bucket      string        // KV bucket name
+	KeyTemplate string        // Key template with {field} placeholders
+	TTL         time.Duration // TTL for entries (0 = no expiry)
+	Description string        // Human-readable bucket description
+	MaxHistory  int32         // Revisions per key (0 = default 1, max 64)
+	ClientOnly  bool          // Skip server auto-persist; only generate client read/write
 }
 
 // ObjectStoreOpts contains object store options for a method
 type ObjectStoreOpts struct {
-	Bucket      string // Object store bucket name
-	KeyTemplate string // Key template with {field} placeholders
+	Bucket      string        // Object store bucket name
+	KeyTemplate string        // Key template with {field} placeholders
+	TTL         time.Duration // TTL for objects (0 = no expiry)
+	Description string        // Human-readable bucket description
+	ClientOnly  bool          // Skip server auto-persist; only generate client read/write
 }
 
 // StreamOpts contains streaming fine-tuning options
@@ -125,10 +132,17 @@ func GetEndpointOptions(method *protogen.Method) EndpointOptions {
 	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_KvStore) {
 		ext := proto.GetExtension(method.Desc.Options(), natspb.E_KvStore)
 		if kvOpts, ok := ext.(*natspb.KVStoreOptions); ok && kvOpts.Bucket != "" {
-			opts.KVStore = &KVStoreOpts{
+			kv := &KVStoreOpts{
 				Bucket:      kvOpts.Bucket,
 				KeyTemplate: kvOpts.KeyTemplate,
+				Description: kvOpts.Description,
+				MaxHistory:  kvOpts.MaxHistory,
+				ClientOnly:  kvOpts.ClientOnly,
 			}
+			if kvOpts.Ttl != nil {
+				kv.TTL = kvOpts.Ttl.AsDuration()
+			}
+			opts.KVStore = kv
 		}
 	}
 
@@ -136,10 +150,16 @@ func GetEndpointOptions(method *protogen.Method) EndpointOptions {
 	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_ObjectStore) {
 		ext := proto.GetExtension(method.Desc.Options(), natspb.E_ObjectStore)
 		if objOpts, ok := ext.(*natspb.ObjectStoreOptions); ok && objOpts.Bucket != "" {
-			opts.ObjectStore = &ObjectStoreOpts{
+			obj := &ObjectStoreOpts{
 				Bucket:      objOpts.Bucket,
 				KeyTemplate: objOpts.KeyTemplate,
+				Description: objOpts.Description,
+				ClientOnly:  objOpts.ClientOnly,
 			}
+			if objOpts.Ttl != nil {
+				obj.TTL = objOpts.Ttl.AsDuration()
+			}
+			opts.ObjectStore = obj
 		}
 	}
 
