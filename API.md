@@ -11,7 +11,7 @@ Complete reference for `protoc-gen-nats-micro` proto extension options.
 
 ## Service Options
 
-Service-level configuration applied to the entire service. Defined using `option (nats.micro.service)`.
+Service-level configuration applied to the entire service. Defined using `option (natsmicro.service)`.
 
 ### subject_prefix
 
@@ -22,13 +22,14 @@ Service-level configuration applied to the entire service. Defined using `option
 NATS subject prefix for all endpoints in the service. Each endpoint becomes `{subject_prefix}.{method_name}`.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   subject_prefix: "api.v1"
 };
 // Results in: api.v1.create_product, api.v1.get_product, etc.
 ```
 
 **Best practices:**
+
 - Use versioned prefixes: `api.v1`, `api.v2`
 - Include environment for multi-tenant: `prod.api.v1`, `staging.api.v1`
 - Keep it simple for discoverability
@@ -42,12 +43,13 @@ option (nats.micro.service) = {
 Service name for NATS micro service registration and discovery.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   name: "product_service"
 };
 ```
 
 **Best practices:**
+
 - Use snake_case for consistency
 - Include domain context: `catalog_product_service`, `order_fulfillment_service`
 - Keep it descriptive but concise
@@ -61,12 +63,13 @@ option (nats.micro.service) = {
 Semantic version for service discovery and monitoring.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   version: "2.1.0"
 };
 ```
 
 **Best practices:**
+
 - Follow [semver](https://semver.org/): `MAJOR.MINOR.PATCH`
 - Increment MAJOR for breaking changes
 - Use runtime override for build-time versions
@@ -80,12 +83,13 @@ option (nats.micro.service) = {
 Human-readable service description for documentation and discovery.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   description: "Product catalog management with inventory tracking"
 };
 ```
 
 **Best practices:**
+
 - Keep it concise (1-2 sentences)
 - Describe the service's primary purpose
 - Avoid implementation details
@@ -99,7 +103,7 @@ option (nats.micro.service) = {
 Service-level key-value metadata for discovery, monitoring, and routing.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   metadata: {key: "team" value: "platform"}
   metadata: {key: "environment" value: "production"}
   metadata: {key: "region" value: "us-west-2"}
@@ -107,11 +111,13 @@ option (nats.micro.service) = {
 ```
 
 **Common patterns:**
+
 - **Organizational**: `team`, `owner`, `cost_center`
 - **Environmental**: `environment`, `region`, `datacenter`
 - **Operational**: `sla`, `criticality`, `on_call`
 
 **Best practices:**
+
 - Use lowercase keys with underscores
 - Keep values simple (avoid JSON/complex data)
 - Use endpoint metadata for operation-specific data
@@ -128,18 +134,20 @@ Default timeout for all endpoints in the service. Can be overridden per-endpoint
 ```protobuf
 import "google/protobuf/duration.proto";
 
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   timeout: {seconds: 30}  // 30 second default
 };
 ```
 
 **Timeout precedence** (highest to lowest):
+
 1. Runtime override: `WithTimeout(45 * time.Second)`
-2. Endpoint-level: `option (nats.micro.endpoint) = {timeout: {seconds: 60}}`
-3. Service-level: `option (nats.micro.service) = {timeout: {seconds: 30}}`
+2. Endpoint-level: `option (natsmicro.endpoint) = {timeout: {seconds: 60}}`
+3. Service-level: `option (natsmicro.service) = {timeout: {seconds: 30}}`
 4. No timeout: `context.Background()`
 
 **Best practices:**
+
 - Set reasonable service defaults (10-30s for typical APIs)
 - Override for expensive operations (search, reports)
 - Consider downstream dependencies
@@ -155,7 +163,7 @@ Skip code generation for the entire service.
 
 ```protobuf
 service AdminService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     skip: true
   };
   // Methods not generated
@@ -163,6 +171,7 @@ service AdminService {
 ```
 
 **Use cases:**
+
 - Internal-only services not exposed via NATS
 - Services under development
 - Deprecated services being phased out
@@ -177,28 +186,31 @@ service AdminService {
 Use JSON encoding instead of binary protobuf for messages.
 
 ```protobuf
-option (nats.micro.service) = {
+option (natsmicro.service) = {
   json: true
 };
 ```
 
 **When to use:**
+
 - Debugging (human-readable messages)
 - Interop with non-protobuf systems
 - Browser-based clients
 
 **Trade-offs:**
+
 - **Pros**: Human-readable, browser-friendly
 - **Cons**: Larger message size, slower serialization, no runtime schema validation
 
 **Best practices:**
+
 - Use binary protobuf (default) for production
 - Enable JSON for debugging environments only
 - Consider performance impact for high-throughput services
 
 ## Endpoint Options
 
-Method-level configuration for individual RPC endpoints. Defined using `option (nats.micro.endpoint)`.
+Method-level configuration for individual RPC endpoints. Defined using `option (natsmicro.endpoint)`.
 
 ### timeout
 
@@ -210,13 +222,14 @@ Override service-level timeout for this specific endpoint.
 
 ```protobuf
 rpc SearchProducts(SearchRequest) returns (SearchResponse) {
-  option (nats.micro.endpoint) = {
+  option (natsmicro.endpoint) = {
     timeout: {seconds: 60}  // Override: 60s for expensive search
   };
 }
 ```
 
 **Best practices:**
+
 - Override for expensive operations (search, aggregations, reports)
 - Set longer timeouts for batch operations
 - Keep default for simple CRUD operations
@@ -232,13 +245,14 @@ Skip code generation for this specific endpoint.
 
 ```protobuf
 rpc InternalDebugMethod(Request) returns (Response) {
-  option (nats.micro.endpoint) = {
+  option (natsmicro.endpoint) = {
     skip: true  // Not exposed via NATS
   };
 }
 ```
 
 **Use cases:**
+
 - Internal-only methods
 - Deprecated endpoints
 - Methods only for gRPC/REST, not NATS
@@ -254,7 +268,7 @@ Endpoint-specific metadata for operation characteristics.
 
 ```protobuf
 rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
-  option (nats.micro.endpoint) = {
+  option (natsmicro.endpoint) = {
     metadata: {key: "operation" value: "read"}
     metadata: {key: "cacheable" value: "true"}
     metadata: {key: "cache_ttl" value: "300"}
@@ -264,6 +278,7 @@ rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
 ```
 
 **Common patterns:**
+
 - **Operation type**: `operation: "read|write|delete"`
 - **Caching**: `cacheable: "true|false"`, `cache_ttl: "300"`
 - **Idempotency**: `idempotent: "true|false"`
@@ -272,6 +287,7 @@ rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
 - **Versioning**: `deprecated: "true"`, `since_version: "2.0"`
 
 **Best practices:**
+
 - Use endpoint metadata for operation-specific characteristics
 - Use service metadata for organizational context
 - Keep keys consistent across services
@@ -286,18 +302,19 @@ Minimal configuration with defaults:
 ```protobuf
 syntax = "proto3";
 package hello.v1;
-import "nats/options.proto";
+import "natsmicro/options.proto";
 
 service GreeterService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "hello.v1"
   };
-  
+
   rpc SayHello(HelloRequest) returns (HelloResponse) {}
 }
 ```
 
 Results in:
+
 - Subject: `hello.v1.say_hello`
 - Name: `greeter_service`
 - Version: `1.0.0`
@@ -310,11 +327,11 @@ Full configuration with timeouts and metadata:
 ```protobuf
 syntax = "proto3";
 package product.v1;
-import "nats/options.proto";
+import "natsmicro/options.proto";
 import "google/protobuf/duration.proto";
 
 service ProductService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "api.v1"
     name: "product_service"
     version: "2.0.0"
@@ -323,24 +340,24 @@ service ProductService {
     metadata: {key: "team" value: "catalog"}
     metadata: {key: "environment" value: "production"}
   };
-  
+
   rpc CreateProduct(CreateProductRequest) returns (CreateProductResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       metadata: {key: "operation" value: "write"}
       metadata: {key: "idempotent" value: "false"}
     };
   }
-  
+
   rpc GetProduct(GetProductRequest) returns (GetProductResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       metadata: {key: "operation" value: "read"}
       metadata: {key: "cacheable" value: "true"}
       metadata: {key: "cache_ttl" value: "300"}
     };
   }
-  
+
   rpc SearchProducts(SearchRequest) returns (SearchResponse) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       timeout: {seconds: 60}  // Override for expensive operation
       metadata: {key: "operation" value: "read"}
       metadata: {key: "expensive" value: "true"}
@@ -357,7 +374,7 @@ Running v1 and v2 simultaneously:
 // proto/order/v1/service.proto
 package order.v1;
 service OrderService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "api.v1"
     name: "order_service"
     version: "1.0.0"
@@ -368,7 +385,7 @@ service OrderService {
 // proto/order/v2/service.proto
 package order.v2;
 service OrderService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "api.v2"
     name: "order_service"
     version: "2.0.0"
@@ -378,6 +395,7 @@ service OrderService {
 ```
 
 Subjects:
+
 - v1: `api.v1.create_order`
 - v2: `api.v2.create_order`
 
@@ -389,21 +407,21 @@ Skip certain services or endpoints:
 
 ```protobuf
 service PublicAPI {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "public.v1"
   };
-  
+
   rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
-  
+
   rpc AdminDeleteUser(DeleteUserRequest) returns (Empty) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       skip: true  // Admin method not exposed via NATS
     };
   }
 }
 
 service InternalDebugService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     skip: true  // Entire service excluded
   };
   rpc DebugDump(Empty) returns (DebugInfo) {}
@@ -416,18 +434,19 @@ For debugging or browser clients:
 
 ```protobuf
 service DebugService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     subject_prefix: "debug.v1"
     json: true  // Use JSON instead of binary protobuf
   };
-  
+
   rpc InspectState(InspectRequest) returns (InspectResponse) {}
 }
 ```
 
 Messages sent as:
+
 ```json
-{"userId": "123", "includeMetadata": true}
+{ "userId": "123", "includeMetadata": true }
 ```
 
 Instead of binary protobuf.
@@ -547,17 +566,17 @@ type UnaryInvoker func(
 ```typescript
 // Generated class
 class ProductServiceNatsServer {
-    constructor(
-        nc: NatsConnection,
-        impl: ProductServiceNats,
-        opts?: ServerOptions
-    );
+  constructor(
+    nc: NatsConnection,
+    impl: ProductServiceNats,
+    opts?: ServerOptions,
+  );
 }
 
 // ServerOptions interface
 interface ServerOptions {
-    subjectPrefix?: string;
-    interceptors?: UnaryServerInterceptor[];
+  subjectPrefix?: string;
+  interceptors?: UnaryServerInterceptor[];
 }
 ```
 
@@ -566,17 +585,19 @@ interface ServerOptions {
 ```typescript
 // Generated class
 class ProductServiceNatsClient {
-    constructor(nc: NatsConnection, opts?: ClientOptions);
-    
-    async createProduct(req: CreateProductRequest): Promise<CreateProductResponse>;
-    // ... other methods
+  constructor(nc: NatsConnection, opts?: ClientOptions);
+
+  async createProduct(
+    req: CreateProductRequest,
+  ): Promise<CreateProductResponse>;
+  // ... other methods
 }
 
 // ClientOptions interface
 interface ClientOptions {
-    subjectPrefix?: string;
-    headers?: MsgHdrs;
-    interceptors?: UnaryClientInterceptor[];
+  subjectPrefix?: string;
+  headers?: MsgHdrs;
+  interceptors?: UnaryClientInterceptor[];
 }
 ```
 
@@ -585,7 +606,7 @@ interface ClientOptions {
 ```typescript
 // Client
 const client = new ProductServiceNatsClient(nc, {
-    headers: headers(),  // Set request headers
+  headers: headers(), // Set request headers
 });
 
 const responseHeaders = { value: null };
@@ -594,15 +615,18 @@ const response = await client.getProduct(req, { responseHeaders });
 
 // Server
 class MyService implements ProductServiceNats {
-    async getProduct(req: GetProductRequest, info: ServerInfo): Promise<GetProductResponse> {
-        // Read request headers
-        const traceId = info.headers.get('X-Trace-Id');
-        
-        // Set response headers
-        info.responseHeaders.set('X-Server-Version', '1.0.0');
-        
-        return response;
-    }
+  async getProduct(
+    req: GetProductRequest,
+    info: ServerInfo,
+  ): Promise<GetProductResponse> {
+    // Read request headers
+    const traceId = info.headers.get("X-Trace-Id");
+
+    // Set response headers
+    info.responseHeaders.set("X-Server-Version", "1.0.0");
+
+    return response;
+  }
 }
 ```
 
@@ -615,11 +639,11 @@ Options can be specified at multiple levels with the following precedence:
    - Overrides all proto configuration
 
 2. **Endpoint-level** (proto)
-   - `option (nats.micro.endpoint) = {...}`
+   - `option (natsmicro.endpoint) = {...}`
    - Overrides service-level defaults
 
 3. **Service-level** (proto)
-   - `option (nats.micro.service) = {...}`
+   - `option (natsmicro.service) = {...}`
    - Provides defaults for all endpoints
 
 4. **Global defaults** (lowest priority)
@@ -630,14 +654,14 @@ Options can be specified at multiple levels with the following precedence:
 
 ```protobuf
 service MyService {
-  option (nats.micro.service) = {
+  option (natsmicro.service) = {
     timeout: {seconds: 30}  // Default: 30s
   };
-  
+
   rpc FastOp(Req) returns (Resp) {}  // Uses 30s
-  
+
   rpc SlowOp(Req) returns (Resp) {
-    option (nats.micro.endpoint) = {
+    option (natsmicro.endpoint) = {
       timeout: {seconds: 120}  // Override: 120s
     };
   }
@@ -652,6 +676,7 @@ RegisterMyServiceHandlers(nc, impl,
 ```
 
 Final timeouts:
+
 - `FastOp`: 60s (runtime override)
 - `SlowOp`: 60s (runtime override beats endpoint-level)
 
@@ -659,5 +684,5 @@ Final timeouts:
 
 - [README.md](README.md) - Project overview and quick start
 - [TYPESCRIPT.md](TYPESCRIPT.md) - TypeScript-specific documentation
-- [proto/nats/options.proto](proto/nats/options.proto) - Proto extension definitions
+- [extensions/proto/natsmicro/options.proto](extensions/proto/natsmicro/options.proto) - Proto extension definitions
 - [examples/](examples/) - Working code examples

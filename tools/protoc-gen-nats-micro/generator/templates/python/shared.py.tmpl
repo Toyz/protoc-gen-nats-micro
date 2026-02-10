@@ -11,28 +11,24 @@ ERROR_CODE_UNAVAILABLE = "UNAVAILABLE"
 @dataclass
 class ServerInfo:
     """Context information for server handlers"""
+    service: str
     method: str
+    subject: str
     headers: Optional[Dict[str, str]] = None
-    
+    response_headers: Optional[Dict[str, str]] = None
+
     def __post_init__(self):
         if self.headers is None:
             self.headers = {}
+        if self.response_headers is None:
+            self.response_headers = {}
 
-
-@dataclass
-class ResponseHeaders:
-    """Container for response headers"""
-    headers: Dict[str, str]
-    
-    def __init__(self):
-        self.headers = {}
-    
-    def set(self, key: str, value: str) -> None:
+    def set_response_header(self, key: str, value: str) -> None:
         """Set a response header"""
-        self.headers[key] = value
-    
-    def get(self, key: str) -> Optional[str]:
-        """Get a response header"""
+        self.response_headers[key] = value
+
+    def get_header(self, key: str) -> Optional[str]:
+        """Get an incoming request header"""
         return self.headers.get(key)
 
 
@@ -44,13 +40,153 @@ UnaryServerInterceptor = Callable[
 ]
 
 UnaryClientInvoker = Callable[
-    [str, Any, Optional[Dict[str, str]], Optional[ResponseHeaders]],
-    Awaitable[Any]
+    [str, Any, Dict[str, str]],
+    Awaitable[Tuple[Any, Dict[str, str]]]
 ]
 UnaryClientInterceptor = Callable[
-    [str, Any, UnaryClientInvoker, Optional[Dict[str, str]], Optional[ResponseHeaders]],
-    Awaitable[Any]
+    [str, Any, UnaryClientInvoker, Dict[str, str]],
+    Awaitable[Tuple[Any, Dict[str, str]]]
 ]
+
+
+# Endpoint info for introspection
+@dataclass
+class EndpointInfo:
+    """Information about a service endpoint"""
+    name: str
+    subject: str
+
+
+# Registration options
+class RegisterOption:
+    """Base class for registration options"""
+    pass
+
+
+class _WithSubjectPrefix(RegisterOption):
+    def __init__(self, prefix: str):
+        self.prefix = prefix
+
+
+class _WithName(RegisterOption):
+    def __init__(self, name: str):
+        self.name = name
+
+
+class _WithVersion(RegisterOption):
+    def __init__(self, version: str):
+        self.version = version
+
+
+class _WithDescription(RegisterOption):
+    def __init__(self, description: str):
+        self.description = description
+
+
+class _WithTimeout(RegisterOption):
+    def __init__(self, timeout: float):
+        self.timeout = timeout
+
+
+class _WithMetadata(RegisterOption):
+    def __init__(self, metadata: Dict[str, str]):
+        self.metadata = metadata
+
+
+class _WithAdditionalMetadata(RegisterOption):
+    def __init__(self, metadata: Dict[str, str]):
+        self.metadata = metadata
+
+
+class _WithServerInterceptor(RegisterOption):
+    def __init__(self, interceptor: UnaryServerInterceptor):
+        self.interceptor = interceptor
+
+
+class _WithJetStream(RegisterOption):
+    def __init__(self, js: Any):
+        self.js = js
+
+
+def with_subject_prefix(prefix: str) -> RegisterOption:
+    """Override the subject prefix for all endpoints"""
+    return _WithSubjectPrefix(prefix)
+
+
+def with_name(name: str) -> RegisterOption:
+    """Override the service name"""
+    return _WithName(name)
+
+
+def with_version(version: str) -> RegisterOption:
+    """Override the service version"""
+    return _WithVersion(version)
+
+
+def with_description(description: str) -> RegisterOption:
+    """Override the service description"""
+    return _WithDescription(description)
+
+
+def with_timeout(timeout: float) -> RegisterOption:
+    """Override the default timeout (seconds)"""
+    return _WithTimeout(timeout)
+
+
+def with_metadata(metadata: Dict[str, str]) -> RegisterOption:
+    """Override the service metadata"""
+    return _WithMetadata(metadata)
+
+
+def with_additional_metadata(metadata: Dict[str, str]) -> RegisterOption:
+    """Merge additional metadata with existing"""
+    return _WithAdditionalMetadata(metadata)
+
+
+def with_server_interceptor(interceptor: UnaryServerInterceptor) -> RegisterOption:
+    """Add a server interceptor"""
+    return _WithServerInterceptor(interceptor)
+
+
+def with_jetstream(js: Any) -> RegisterOption:
+    """Provide a JetStream context for KV/ObjectStore operations"""
+    return _WithJetStream(js)
+
+
+# Client options
+class NatsClientOption:
+    """Base class for client options"""
+    pass
+
+
+class _WithClientSubjectPrefix(NatsClientOption):
+    def __init__(self, prefix: str):
+        self.prefix = prefix
+
+
+class _WithClientInterceptor(NatsClientOption):
+    def __init__(self, interceptor: UnaryClientInterceptor):
+        self.interceptor = interceptor
+
+
+class _WithClientJetStream(NatsClientOption):
+    def __init__(self, js: Any):
+        self.js = js
+
+
+def with_client_subject_prefix(prefix: str) -> NatsClientOption:
+    """Override the subject prefix for client calls"""
+    return _WithClientSubjectPrefix(prefix)
+
+
+def with_client_interceptor(interceptor: UnaryClientInterceptor) -> NatsClientOption:
+    """Add a client interceptor"""
+    return _WithClientInterceptor(interceptor)
+
+
+def with_client_jetstream(js: Any) -> NatsClientOption:
+    """Provide a JetStream context for client-side KV/ObjectStore reads"""
+    return _WithClientJetStream(js)
 
 
 def chain_server_interceptors(
@@ -59,10 +195,10 @@ def chain_server_interceptors(
     """Chain multiple server interceptors into one"""
     if not interceptors:
         return None
-    
+
     if len(interceptors) == 1:
         return interceptors[0]
-    
+
     async def chained(
         request: Any,
         info: ServerInfo,
@@ -75,9 +211,9 @@ def chain_server_interceptors(
             async def make_handler(req: Any, inf: ServerInfo, nh=next_handler, ic=interceptor) -> Any:
                 return await ic(req, inf, nh)
             current_handler = make_handler
-        
+
         return await current_handler(request, info)
-    
+
     return chained
 
 
@@ -87,17 +223,16 @@ def chain_client_interceptors(
     """Chain multiple client interceptors into one"""
     if not interceptors:
         return None
-    
+
     if len(interceptors) == 1:
         return interceptors[0]
-    
+
     async def chained(
         method: str,
         request: Any,
         invoker: UnaryClientInvoker,
-        headers: Optional[Dict[str, str]] = None,
-        response_headers: Optional[ResponseHeaders] = None
-    ) -> Any:
+        headers: Dict[str, str]
+    ) -> Tuple[Any, Dict[str, str]]:
         # Build chain from right to left
         current_invoker = invoker
         for interceptor in reversed(interceptors):
@@ -105,14 +240,13 @@ def chain_client_interceptors(
             async def make_invoker(
                 m: str,
                 req: Any,
-                h: Optional[Dict[str, str]] = None,
-                rh: Optional[ResponseHeaders] = None,
+                h: Dict[str, str],
                 ni=next_invoker,
                 ic=interceptor
-            ) -> Any:
-                return await ic(m, req, ni, h, rh)
+            ) -> Tuple[Any, Dict[str, str]]:
+                return await ic(m, req, ni, h)
             current_invoker = make_invoker
-        
-        return await current_invoker(method, request, headers, response_headers)
-    
+
+        return await current_invoker(method, request, headers)
+
     return chained

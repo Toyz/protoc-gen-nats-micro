@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package kvstore_demo.v1;
+
+import "natsmicro/options.proto";
+
+option go_package = "example/gen/kvstore_demo/v1";
+
+// KV Store Demo Service
+// Demonstrates auto-persisting RPC responses to a NATS KV bucket
+// and reading cached data directly from the Object Store.
+service KVStoreDemoService {
+  option (natsmicro.service) = {
+    subject_prefix : "api.v1.kvdemo"
+    name : "kvstore_demo_service"
+    version : "1.0.0"
+    description : "Demonstrates KV Store and Object Store integration"
+  };
+
+  // SaveProfile — persists user profile to a KV bucket after responding.
+  // Clients can later read the profile directly from the KV store
+  // without making an RPC call via GetSaveProfileFromKV("user.{id}").
+  rpc SaveProfile(SaveProfileRequest) returns (ProfileResponse) {
+    option (natsmicro.endpoint) = {
+      timeout : {seconds : 5}
+    };
+    option (natsmicro.kv_store) = {
+      bucket : "user_profiles"
+      key_template : "user.{id}"
+    };
+  }
+
+  // GetProfile — standard unary RPC without KV persistence.
+  rpc GetProfile(GetProfileRequest) returns (ProfileResponse) {
+    option (natsmicro.endpoint) = {
+      timeout : {seconds : 5}
+    };
+  }
+
+  // UploadReport — generates a report and persists it to the Object Store.
+  // Clients can later read the report directly from the Object Store
+  // without making an RPC call via
+  // GetGenerateReportFromObjectStore("report.{id}").
+  rpc GenerateReport(GenerateReportRequest) returns (ReportResponse) {
+    option (natsmicro.endpoint) = {
+      timeout : {seconds : 30}
+    };
+    option (natsmicro.object_store) = {
+      bucket : "reports"
+      key_template : "report.{id}"
+    };
+  }
+}
+
+// --- Messages ---
+
+message SaveProfileRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string bio = 4;
+}
+
+message GetProfileRequest { string id = 1; }
+
+message ProfileResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string bio = 4;
+  string updated_at = 5;
+}
+
+message GenerateReportRequest {
+  string id = 1;
+  string title = 2;
+  string format = 3; // e.g., "pdf", "csv"
+}
+
+message ReportResponse {
+  string id = 1;
+  string title = 2;
+  bytes content = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+}

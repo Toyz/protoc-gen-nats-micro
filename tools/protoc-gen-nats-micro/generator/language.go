@@ -45,6 +45,17 @@ func FuncMap() template.FuncMap {
 		"GetEndpointOptions": GetEndpointOptions,
 		"GetMethodOptions":   GetEndpointOptions, // Alias for consistency
 		"ProtoBasename":      ProtoBasename,
+		// Streaming detection
+		"IsServerStreaming": IsServerStreaming,
+		"IsClientStreaming": IsClientStreaming,
+		"IsBidiStreaming":   IsBidiStreaming,
+		"IsUnary":           IsUnary,
+		// KV/ObjectStore key template resolution
+		"ResolveKeyTemplateGo": ResolveKeyTemplateGo,
+		"ResolveKeyTemplateTS": ResolveKeyTemplateTS,
+		"ResolveKeyTemplatePy": ResolveKeyTemplatePy,
+		// Method field accessors
+		"GetInputFields": GetInputFields,
 	}
 }
 

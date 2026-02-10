@@ -1,6 +1,6 @@
 # https://taskfile.dev
 
-version: '3'
+version: "3"
 
 vars:
   PLUGIN_DIR: tools/protoc-gen-nats-micro
@@ -164,7 +164,7 @@ tasks:
     dir: examples/simple-py
     cmds:
       - python -m venv venv
-      - ./venv/Scripts/pip install -r requirements.txt
+      - ./venv/bin/pip install -r requirements.txt
     sources:
       - requirements.txt
     generates:
@@ -180,7 +180,7 @@ tasks:
       - setup:python
     dir: examples/simple-py
     cmds:
-      - ./venv/Scripts/python server.py
+      - ./venv/bin/python server.py
 
   # Run Python client
   run:python:client:
@@ -190,4 +190,4 @@ tasks:
       - setup:python
     dir: examples/simple-py
     cmds:
-      - ./venv/Scripts/python client.py
+      - ./venv/bin/python client.py

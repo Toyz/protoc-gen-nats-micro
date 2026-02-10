@@ -16,6 +16,12 @@ export interface I{{.Service.GoName}}NatsClient {
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
   {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}, opts?: RequestOptions): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- if $endpointOpts.KVStore}}
+  get{{.GoName}}FromKV(key: string): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
+{{- if $endpointOpts.ObjectStore}}
+  get{{.GoName}}FromObjectStore(key: string): Promise<pb.{{.Output.GoIdent.GoName}}>;
+{{- end}}
 {{- end}}
 {{- end}}
   endpoints(): {{.Service.GoName}}EndpointInfo[];
@@ -28,6 +34,7 @@ export interface {{.Service.GoName}}ClientOptions {
   subjectPrefix?: string;
   timeout?: number; // milliseconds
   clientInterceptors?: UnaryClientInterceptor[]; // Client-side interceptors
+  jetstream?: any; // Optional JetStream client for KV/ObjectStore reads
 }
 
 /**
@@ -39,6 +46,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   private readonly subjectPrefix: string;
   private readonly timeout?: number;
   private readonly interceptor?: UnaryClientInterceptor;
+  private readonly js?: any; // Optional JetStream client
 
   /**
    * Create a new NATS client for {{.Service.GoName}}
@@ -49,6 +57,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     this.nc = nc;
     this.subjectPrefix = options?.subjectPrefix || '{{.Options.SubjectPrefix}}';
     this.timeout = options?.timeout;
+    this.js = options?.jetstream;
     
     // Chain client interceptors
     this.interceptor = options?.clientInterceptors
@@ -117,6 +126,46 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     
     return response;
   }
+
+{{- if $endpointOpts.KVStore}}
+
+  /**
+   * Read a cached {{.GoName}} response directly from the KV Store.
+   * @param key - The KV key matching the key_template pattern
+   * @throws Error if JetStream is not configured or the key is not found
+   */
+  async get{{.GoName}}FromKV(key: string): Promise<pb.{{.Output.GoIdent.GoName}}> {
+    if (!this.js) {
+      throw new Error('JetStream not configured; pass jetstream option to enable KV reads');
+    }
+    const kv = await this.js.views.kv('{{$endpointOpts.KVStore.Bucket}}');
+    const entry = await kv.get(key);
+    if (!entry || !entry.value) {
+      throw new Error(`KV key "${key}" not found in bucket "{{$endpointOpts.KVStore.Bucket}}"`);
+    }
+    return pb.{{.Output.GoIdent.GoName}}.fromBinary(entry.value);
+  }
+{{- end}}
+
+{{- if $endpointOpts.ObjectStore}}
+
+  /**
+   * Read a cached {{.GoName}} response directly from the Object Store.
+   * @param key - The object key matching the key_template pattern
+   * @throws Error if JetStream is not configured or the key is not found
+   */
+  async get{{.GoName}}FromObjectStore(key: string): Promise<pb.{{.Output.GoIdent.GoName}}> {
+    if (!this.js) {
+      throw new Error('JetStream not configured; pass jetstream option to enable Object Store reads');
+    }
+    const obj = await this.js.views.os('{{$endpointOpts.ObjectStore.Bucket}}');
+    const data = await obj.getBlob(key);
+    if (!data) {
+      throw new Error(`Object "${key}" not found in bucket "{{$endpointOpts.ObjectStore.Bucket}}"`);
+    }
+    return pb.{{.Output.GoIdent.GoName}}.fromBinary(data);
+  }
+{{- end}}
 
 {{end -}}
 {{end -}}

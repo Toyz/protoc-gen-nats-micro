@@ -27,6 +27,7 @@ export interface {{.Service.GoName}}RegisterOptions {
   timeout?: number; // milliseconds (0 = no timeout)
   metadata?: Record<string, string>;
   serverInterceptors?: UnaryServerInterceptor[]; // Server-side interceptors
+  jetstream?: any; // Optional JetStream client for KV/ObjectStore operations
 }
 
 /**
@@ -128,7 +129,7 @@ export async function register{{.Service.GoName}}Handlers(
     : undefined;
 
   // Create handlers
-  const handlers = new {{.Service.GoName}}Handlers(impl, timeout, chainedInterceptor);
+  const handlers = new {{.Service.GoName}}Handlers(impl, timeout, chainedInterceptor, options?.jetstream);
 
   // Add endpoints
   const group = subjectPrefix ? service.addGroup(subjectPrefix) : service;
@@ -159,7 +160,8 @@ class {{.Service.GoName}}Handlers {
   constructor(
     private readonly impl: I{{.Service.GoName}}Nats,
     private readonly serviceTimeout: number, // Default timeout for all endpoints (milliseconds)
-    private readonly interceptor?: UnaryServerInterceptor // Chained interceptors
+    private readonly interceptor?: UnaryServerInterceptor, // Chained interceptors
+    private readonly js?: any // Optional JetStream client
   ) {}
 
 {{range .Service.Methods -}}
@@ -210,6 +212,35 @@ class {{.Service.GoName}}Handlers {
 
       // Encode and send response
       const data = pb.{{.Output.GoIdent.GoName}}.toBinary(response);
+
+      {{- /* KV Store persistence */}}
+      {{- if $endpointOpts.KVStore}}
+      // Auto-persist response to KV Store (bucket: "{{$endpointOpts.KVStore.Bucket}}")
+      if (this.js) {
+        try {
+          const kvKey = {{ResolveKeyTemplateTS $endpointOpts.KVStore.KeyTemplate .}};
+          const kv = await this.js.views.kv('{{$endpointOpts.KVStore.Bucket}}');
+          await kv.put(kvKey, data);
+        } catch (kvErr) {
+          console.warn(`[nats-micro] WARN: failed to persist {{.GoName}} to KV: ${kvErr}`);
+        }
+      }
+      {{- end}}
+
+      {{- /* Object Store persistence */}}
+      {{- if $endpointOpts.ObjectStore}}
+      // Auto-persist response to Object Store (bucket: "{{$endpointOpts.ObjectStore.Bucket}}")
+      if (this.js) {
+        try {
+          const objKey = {{ResolveKeyTemplateTS $endpointOpts.ObjectStore.KeyTemplate .}};
+          const obj = await this.js.views.os('{{$endpointOpts.ObjectStore.Bucket}}');
+          await obj.putBlob({ name: objKey }, data);
+        } catch (objErr) {
+          console.warn(`[nats-micro] WARN: failed to persist {{.GoName}} to Object Store: ${objErr}`);
+        }
+      }
+      {{- end}}
+
       msg.respond(data);
     } catch (error) {
       // Handle errors

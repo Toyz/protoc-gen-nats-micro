@@ -54,10 +54,45 @@ message EndpointOptions {
   map<string, string> metadata = 3;
 }
 
+// KV Store options for RPC methods
+// When set, the server handler automatically persists the response
+// into a NATS JetStream KV bucket after processing.
+message KVStoreOptions {
+  // KV bucket name (e.g., "user_profiles")
+  string bucket = 1;
+
+  // Key template with {field} placeholders resolved from the request message
+  // e.g., "user.{id}" extracts the 'id' field from the request
+  string key_template = 2;
+}
+
+// Object Store options for RPC methods
+// When set, the handler stores/retrieves large binary objects
+// from a NATS JetStream Object Store bucket.
+message ObjectStoreOptions {
+  // Object store bucket name (e.g., "firmware_binaries")
+  string bucket = 1;
+
+  // Key template with {field} placeholders (optional, defaults to method name)
+  string key_template = 2;
+}
+
+// Streaming options for fine-tuning streaming RPC behavior
+message StreamOptions {
+  // Max concurrent in-flight messages (backpressure, 0 = unlimited)
+  int32 max_inflight = 1;
+
+  // Guarantee message ordering via sequence headers
+  bool ordered = 2;
+}
+
 extend google.protobuf.ServiceOptions {
   ServiceOptions service = 50001;
 }
 
 extend google.protobuf.MethodOptions {
   EndpointOptions endpoint = 50002;
+  KVStoreOptions kv_store = 50003;
+  ObjectStoreOptions object_store = 50004;
+  StreamOptions stream = 50005;
 }

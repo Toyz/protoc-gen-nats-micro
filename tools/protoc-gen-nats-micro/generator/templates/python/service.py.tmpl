@@ -20,25 +20,58 @@ class {{$serviceName}}Handler(Protocol):
 async def register_{{ToSnakeCase $serviceName}}(
     nc: nats.NATS,
     handler: {{$serviceName}}Handler,
-    interceptors: Optional[List[UnaryServerInterceptor]] = None
-) -> micro.Service:
+    *opts: RegisterOption
+) -> "{{$serviceName}}Wrapper":
     """Register {{$serviceName}} service with NATS micro"""
     
+    # Apply default options from proto
+    subject_prefix = "{{or $serviceOptions.SubjectPrefix (ToSnakeCase $serviceName)}}"
+    service_name = "{{or $serviceOptions.Name (ToSnakeCase $serviceName)}}"
+    service_version = "{{or $serviceOptions.Version "0.0.1"}}"
+    service_description = "{{or $serviceOptions.Description $serviceName}}"
+    {{- if $serviceOptions.Timeout}}
+    default_timeout: float = {{$serviceOptions.Timeout.Seconds}}.0
+    {{- else}}
+    default_timeout: float = 0.0
+    {{- end}}
+    metadata: Dict[str, str] = {
+        {{- range $key, $value := $serviceOptions.Metadata}}
+        "{{$key}}": "{{$value}}",
+        {{- end}}
+    }
+    interceptors: List[UnaryServerInterceptor] = []
+    js_context: Any = None  # Optional JetStream context
+    
+    # Apply runtime options
+    for opt in opts:
+        if isinstance(opt, _WithSubjectPrefix):
+            subject_prefix = opt.prefix
+        elif isinstance(opt, _WithName):
+            service_name = opt.name
+        elif isinstance(opt, _WithVersion):
+            service_version = opt.version
+        elif isinstance(opt, _WithDescription):
+            service_description = opt.description
+        elif isinstance(opt, _WithTimeout):
+            default_timeout = opt.timeout
+        elif isinstance(opt, _WithMetadata):
+            metadata = opt.metadata
+        elif isinstance(opt, _WithAdditionalMetadata):
+            metadata = {**metadata, **opt.metadata}
+        elif isinstance(opt, _WithServerInterceptor):
+            interceptors.append(opt.interceptor)
+        elif isinstance(opt, _WithJetStream):
+            js_context = opt.js
+    
     # Chain interceptors
-    chain = chain_server_interceptors(interceptors or [])
+    chain = chain_server_interceptors(interceptors)
     
     # Service configuration
     config = micro.ServiceConfig(
-        name="{{or $serviceOptions.Name (ToKebabCase $serviceName)}}",
-        version="{{or $serviceOptions.Version "0.0.1"}}",
-        description="{{or $serviceOptions.Description $serviceName}}",
-        {{- if $serviceOptions.Metadata}}
-        metadata={
-            {{- range $key, $value := $serviceOptions.Metadata}}
-            "{{$key}}": "{{$value}}",
-            {{- end}}
-        }
-        {{- end}}
+        name=service_name,
+        version=service_version,
+        description=service_description,
+        metadata=metadata if metadata else None
     )
     
     # Create service
@@ -53,8 +86,7 @@ async def register_{{ToSnakeCase $serviceName}}(
         try:
             # Parse request
             {{- if $serviceOptions.UseJSON}}
-            request_msg = pb.{{.Input.GoIdent.GoName}}()
-            request_msg.ParseFromString(req.data)
+            request_msg = Parse(req.data.decode(), pb.{{.Input.GoIdent.GoName}}())
             {{- else}}
             request_msg = pb.{{.Input.GoIdent.GoName}}.FromString(req.data)
             {{- end}}
@@ -64,24 +96,31 @@ async def register_{{ToSnakeCase $serviceName}}(
             if req.headers:
                 for key, values in req.headers.items():
                     if values:
-                        headers[key] = values[0]
+                        headers[key] = values[0] if isinstance(values, list) else values
             
-            # Create server info
+            # Create server info with service context
             info = ServerInfo(
+                service="{{$serviceName}}",
                 method="{{.GoName}}",
+                subject=f"{subject_prefix}.{{ToSnakeCase .GoName}}",
                 headers=headers
             )
-            
-            # Create response headers
-            response_headers = ResponseHeaders()
             
             # Create handler wrapper
             async def invoke(
                 req_inner: pb.{{.Input.GoIdent.GoName}},
                 info_inner: ServerInfo
             ) -> pb.{{.Output.GoIdent.GoName}}:
-                result = await handler.{{ToSnakeCase .GoName}}(req_inner, info_inner)
-                return result
+                {{- if or (gt $methodOptions.Timeout.Nanoseconds 0) true}}
+                # Apply timeout if configured
+                effective_timeout = {{if gt $methodOptions.Timeout.Nanoseconds 0}}{{$methodOptions.Timeout.Seconds}}.0{{else}}default_timeout{{end}}
+                if effective_timeout > 0:
+                    return await asyncio.wait_for(
+                        handler.{{ToSnakeCase .GoName}}(req_inner, info_inner),
+                        timeout=effective_timeout
+                    )
+                {{- end}}
+                return await handler.{{ToSnakeCase .GoName}}(req_inner, info_inner)
             
             # Execute with interceptors
             if chain:
@@ -91,42 +130,74 @@ async def register_{{ToSnakeCase $serviceName}}(
             
             # Serialize response
             {{- if $serviceOptions.UseJSON}}
-            response_data = response_msg.SerializeToString()
+            response_data = MessageToJson(response_msg).encode()
             {{- else}}
             response_data = response_msg.SerializeToString()
             {{- end}}
             
-            # Add response headers
+            {{- /* KV Store persistence */}}
+            {{- if $methodOptions.KVStore}}
+            # Auto-persist response to KV Store (bucket: "{{$methodOptions.KVStore.Bucket}}")
+            if js_context is not None:
+                try:
+                    kv_key = {{ResolveKeyTemplatePy $methodOptions.KVStore.KeyTemplate .}}
+                    kv = await js_context.key_value("{{$methodOptions.KVStore.Bucket}}")
+                    await kv.put(kv_key, response_data)
+                except Exception as kv_err:
+                    import logging
+                    logging.warning(f"[nats-micro] KV persist failed for {{.GoName}}: {kv_err}")
+            {{- end}}
+            
+            {{- /* Object Store persistence */}}
+            {{- if $methodOptions.ObjectStore}}
+            # Auto-persist response to Object Store (bucket: "{{$methodOptions.ObjectStore.Bucket}}")
+            if js_context is not None:
+                try:
+                    obj_key = {{ResolveKeyTemplatePy $methodOptions.ObjectStore.KeyTemplate .}}
+                    obj = await js_context.object_store("{{$methodOptions.ObjectStore.Bucket}}")
+                    await obj.put(obj_key, response_data)
+                except Exception as obj_err:
+                    import logging
+                    logging.warning(f"[nats-micro] Object Store persist failed for {{.GoName}}: {obj_err}")
+            {{- end}}
+            
+            # Add response headers from handler/interceptors
             resp_headers = None
-            if response_headers.headers:
-                resp_headers = response_headers.headers
+            if info.response_headers:
+                resp_headers = info.response_headers
             
             # Send response
             await req.respond(response_data, headers=resp_headers)
             
+        except asyncio.TimeoutError:
+            # Timeout error - use standard NATS micro error headers
+            error_headers = {
+                "Status": ERROR_CODE_INTERNAL,
+                "Description": "request timeout for {{.GoName}}"
+            }
+            await req.respond(b'', headers=error_headers)
+            
         except {{$serviceName}}Error as e:
-            # Service error - send structured error
-            error_data = json.dumps({
-                "code": e.code,
-                "message": e.message,
-                "method": e.method
-            }).encode()
-            await req.respond(error_data, headers={"X-Error-Code": e.code})
+            # Service error - use standard NATS micro error headers
+            error_headers = {
+                "Status": e.code,
+                "Description": e.message
+            }
+            await req.respond(e.data or b'', headers=error_headers)
             
         except Exception as e:
-            # Unexpected error
-            error_data = json.dumps({
-                "code": ERROR_CODE_INTERNAL,
-                "message": str(e),
-                "method": "{{.GoName}}"
-            }).encode()
-            await req.respond(error_data, headers={"X-Error-Code": ERROR_CODE_INTERNAL})
+            # Unexpected error - use standard NATS micro error headers
+            error_headers = {
+                "Status": ERROR_CODE_INTERNAL,
+                "Description": str(e)
+            }
+            await req.respond(b'', headers=error_headers)
     
     # Add endpoint
     await service.add_endpoint(
-        name="{{ToSnakeCase .GoName}}",
+        name="{{.GoName}}",
         handler=_handle_{{ToSnakeCase .GoName}},
-        subject="{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}",
+        subject=f"{subject_prefix}.{{ToSnakeCase .GoName}}",
         {{- if $methodOptions.Metadata}}
         metadata={
             {{- range $key, $value := $methodOptions.Metadata}}
@@ -138,16 +209,31 @@ async def register_{{ToSnakeCase $serviceName}}(
     {{- end}}
     {{- end}}
     
-    return service
+    return {{$serviceName}}Wrapper(service, subject_prefix)
 
 
-def {{ToSnakeCase $serviceName}}_endpoints() -> List[str]:
-    """Get list of endpoint subjects for {{$serviceName}}"""
-    return [
-        {{- range .Service.Methods}}
-        {{- $methodOptions := GetEndpointOptions .}}
-        {{- if not $methodOptions.Skip}}
-        "{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}",
-        {{- end}}
-        {{- end}}
-    ]
+class {{$serviceName}}Wrapper:
+    """Wrapper around the NATS micro service for {{$serviceName}}"""
+    
+    def __init__(self, service: micro.Service, subject_prefix: str):
+        self._service = service
+        self._subject_prefix = subject_prefix
+    
+    def endpoints(self) -> List[EndpointInfo]:
+        """Get list of endpoint info for {{$serviceName}}"""
+        return [
+            {{- range .Service.Methods}}
+            {{- $methodOptions := GetEndpointOptions .}}
+            {{- if not $methodOptions.Skip}}
+            EndpointInfo(name="{{.GoName}}", subject=f"{self._subject_prefix}.{{ToSnakeCase .GoName}}"),
+            {{- end}}
+            {{- end}}
+        ]
+    
+    async def stop(self) -> None:
+        """Stop the service"""
+        await self._service.stop()
+    
+    def info(self):
+        """Get service info"""
+        return self._service.info()

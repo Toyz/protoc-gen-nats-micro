@@ -112,6 +112,7 @@ type registerConfig struct {
 	doneHandler        micro.DoneHandler
 	errorHandler       micro.ErrHandler
 	serverInterceptors []UnaryServerInterceptor
+	js                 jetstream.JetStream // Optional JetStream context for KV/ObjectStore
 }
 
 // RegisterOption configures the service registration
@@ -179,6 +180,13 @@ func WithErrorHandler(handler micro.ErrHandler) RegisterOption {
 	return func(c *registerConfig) { c.errorHandler = handler }
 }
 
+// WithJetStream provides a JetStream context for KV/ObjectStore operations.
+// Required only if any methods use (natsmicro.kv_store) or (natsmicro.object_store) options.
+// If not provided, KV/ObjectStore operations will be silently skipped.
+func WithJetStream(js jetstream.JetStream) RegisterOption {
+	return func(c *registerConfig) { c.js = js }
+}
+
 // WithServerInterceptor adds a unary server interceptor to the service.
 // Interceptors are executed in the order they are added.
 // Use for cross-cutting concerns like logging, auth, metrics, tracing.
@@ -218,6 +226,7 @@ func chainUnaryServerInterceptors(interceptors []UnaryServerInterceptor) UnarySe
 type natsClientConfig struct {
 	subjectPrefix      string
 	clientInterceptors []UnaryClientInterceptor
+	js                 jetstream.JetStream // Optional JetStream for KV/ObjectStore reads
 }
 
 // NatsClientOption is a generic client configuration option
@@ -247,6 +256,14 @@ func WithNatsClientSubjectPrefix(prefix string) NatsClientOption {
 func WithClientInterceptor(interceptor UnaryClientInterceptor) NatsClientOption {
 	return natsClientOptionFunc(func(c *natsClientConfig) {
 		c.clientInterceptors = append(c.clientInterceptors, interceptor)
+	})
+}
+
+// WithNatsClientJetStream provides a JetStream context for client-side KV/ObjectStore reads.
+// Required only if using Get*FromKV or Get*FromObjectStore convenience methods.
+func WithNatsClientJetStream(js jetstream.JetStream) NatsClientOption {
+	return natsClientOptionFunc(func(c *natsClientConfig) {
+		c.js = js
 	})
 }
 

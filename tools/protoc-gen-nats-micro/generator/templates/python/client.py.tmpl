@@ -8,15 +8,27 @@ class {{$serviceName}}Client:
     def __init__(
         self,
         nc: nats.NATS,
-        interceptors: Optional[List[UnaryClientInterceptor]] = None
+        *opts: NatsClientOption
     ):
         self._nc = nc
-        self._chain = chain_client_interceptors(interceptors or [])
+        self._subject_prefix = "{{or $serviceOptions.SubjectPrefix (ToSnakeCase $serviceName)}}"
         {{- if $serviceOptions.Timeout}}
-        self._default_timeout = {{$serviceOptions.Timeout}}
+        self._default_timeout = {{$serviceOptions.Timeout.Seconds}}.0
         {{- else}}
         self._default_timeout = 5.0
         {{- end}}
+        self._js = None  # Optional JetStream context
+        
+        interceptors: List[UnaryClientInterceptor] = []
+        for opt in opts:
+            if isinstance(opt, _WithClientSubjectPrefix):
+                self._subject_prefix = opt.prefix
+            elif isinstance(opt, _WithClientInterceptor):
+                interceptors.append(opt.interceptor)
+            elif isinstance(opt, _WithClientJetStream):
+                self._js = opt.js
+        
+        self._chain = chain_client_interceptors(interceptors)
     
     {{- range .Service.Methods}}
     {{- $methodOptions := GetEndpointOptions .}}
@@ -39,27 +51,29 @@ class {{$serviceName}}Client:
         
         # Determine timeout
         {{- if $methodOptions.Timeout}}
-        request_timeout = timeout or {{$methodOptions.Timeout}}
+        request_timeout = timeout or {{$methodOptions.Timeout.Seconds}}.0
         {{- else}}
         request_timeout = timeout or self._default_timeout
         {{- end}}
         
-        # Subject
-        subject = "{{or $serviceOptions.SubjectPrefix (ToKebabCase $serviceName)}}.{{ToKebabCase .GoName}}"
+        method = "{{.GoName}}"
         
         # Create invoker
         async def invoke(
+            m: str,
             req_inner: pb.{{.Input.GoIdent.GoName}},
             headers_inner: Dict[str, str]
         ) -> Tuple[pb.{{.Output.GoIdent.GoName}}, Dict[str, str]]:
+            subject = f"{self._subject_prefix}.{{ToSnakeCase .GoName}}"
+            
             # Serialize request
             {{- if $serviceOptions.UseJSON}}
-            request_data = req_inner.SerializeToString()
+            request_data = MessageToJson(req_inner).encode()
             {{- else}}
             request_data = req_inner.SerializeToString()
             {{- end}}
             
-            # Convert headers to NATS format (Dict[str, str])
+            # Convert headers to NATS format
             nats_headers = headers_inner if headers_inner else None
             
             # Make request
@@ -73,46 +87,47 @@ class {{$serviceName}}Client:
             except asyncio.TimeoutError:
                 raise {{$serviceName}}Error(
                     ERROR_CODE_UNAVAILABLE,
-                    "{{.GoName}}",
+                    m,
                     f"request timeout after {request_timeout}s"
                 )
             except Exception as e:
                 raise {{$serviceName}}Error(
                     ERROR_CODE_UNAVAILABLE,
-                    "{{.GoName}}",
+                    m,
                     f"request failed: {str(e)}"
                 )
             
-            # Check for error response
-            if msg.headers and "X-Error-Code" in msg.headers:
-                error_code_list = msg.headers["X-Error-Code"]
-                error_code = error_code_list[0] if isinstance(error_code_list, list) else error_code_list
-                try:
-                    error_info = json.loads(msg.data.decode())
-                    raise {{$serviceName}}Error(
-                        error_code,
-                        error_info.get("method", "{{.GoName}}"),
-                        error_info.get("message", "unknown error")
-                    )
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    raise {{$serviceName}}Error(
-                        error_code,
-                        "{{.GoName}}",
-                        "error response parsing failed"
-                    )
+            # Check for error response using standard NATS micro error headers
+            status = None
+            if msg.headers:
+                status_val = msg.headers.get("Status")
+                if status_val:
+                    status = status_val[0] if isinstance(status_val, list) else status_val
+            
+            if status:
+                description = "unknown error"
+                if msg.headers:
+                    desc_val = msg.headers.get("Description")
+                    if desc_val:
+                        description = desc_val[0] if isinstance(desc_val, list) else desc_val
+                raise {{$serviceName}}Error(
+                    status,
+                    m,
+                    description,
+                    msg.data if msg.data else None
+                )
             
             # Parse response
             try:
                 {{- if $serviceOptions.UseJSON}}
-                response_msg = pb.{{.Output.GoIdent.GoName}}()
-                response_msg.ParseFromString(msg.data)
+                response_msg = Parse(msg.data.decode(), pb.{{.Output.GoIdent.GoName}}())
                 {{- else}}
                 response_msg = pb.{{.Output.GoIdent.GoName}}.FromString(msg.data)
                 {{- end}}
             except Exception as e:
                 raise {{$serviceName}}Error(
                     ERROR_CODE_INTERNAL,
-                    "{{.GoName}}",
+                    m,
                     f"failed to parse response: {str(e)}"
                 )
             
@@ -120,20 +135,76 @@ class {{$serviceName}}Client:
             response_headers: Dict[str, str] = {}
             if msg.headers:
                 for key, value in msg.headers.items():
-                    if value and key != "X-Error-Code":
-                        # Handle both string and list values (in case of multi-value headers)
+                    if key not in ("Status", "Description"):
                         response_headers[key] = value[0] if isinstance(value, list) else value
             
             return response_msg, response_headers
         
         # Execute with interceptors
         if self._chain:
-            return await self._chain(req, headers or {}, "{{.GoName}}", invoke)
+            return await self._chain(method, req, invoke, headers or {})
         else:
-            return await invoke(req, headers or {})
+            return await invoke(method, req, headers or {})
+    
+    {{- if $methodOptions.KVStore}}
+    
+    async def get_{{ToSnakeCase .GoName}}_from_kv(
+        self,
+        key: str
+    ) -> pb.{{.Output.GoIdent.GoName}}:
+        """Read a cached {{.GoName}} response directly from the KV Store.
+        
+        Args:
+            key: The KV key matching the key_template pattern
+        
+        Raises:
+            RuntimeError: If JetStream is not configured
+        """
+        if self._js is None:
+            raise RuntimeError("JetStream not configured; use with_client_jetstream to enable KV reads")
+        kv = await self._js.key_value("{{$methodOptions.KVStore.Bucket}}")
+        entry = await kv.get(key)
+        {{- if $serviceOptions.UseJSON}}
+        return Parse(entry.value.decode(), pb.{{.Output.GoIdent.GoName}}())
+        {{- else}}
+        return pb.{{.Output.GoIdent.GoName}}.FromString(entry.value)
+        {{- end}}
+    {{- end}}
+    
+    {{- if $methodOptions.ObjectStore}}
+    
+    async def get_{{ToSnakeCase .GoName}}_from_object_store(
+        self,
+        key: str
+    ) -> pb.{{.Output.GoIdent.GoName}}:
+        """Read a cached {{.GoName}} response directly from the Object Store.
+        
+        Args:
+            key: The object key matching the key_template pattern
+        
+        Raises:
+            RuntimeError: If JetStream is not configured
+        """
+        if self._js is None:
+            raise RuntimeError("JetStream not configured; use with_client_jetstream to enable Object Store reads")
+        obj = await self._js.object_store("{{$methodOptions.ObjectStore.Bucket}}")
+        data = await obj.get(key)
+        {{- if $serviceOptions.UseJSON}}
+        return Parse(data.decode(), pb.{{.Output.GoIdent.GoName}}())
+        {{- else}}
+        return pb.{{.Output.GoIdent.GoName}}.FromString(data)
+        {{- end}}
+    {{- end}}
     {{- end}}
     {{- end}}
     
-    def endpoints(self) -> List[str]:
-        """Get list of endpoint subjects"""
-        return {{ToSnakeCase $serviceName}}_endpoints()
+    def endpoints(self) -> List[EndpointInfo]:
+        """Get list of endpoint info"""
+        return [
+            {{- range .Service.Methods}}
+            {{- $methodOptions := GetEndpointOptions .}}
+            {{- if not $methodOptions.Skip}}
+            EndpointInfo(name="{{.GoName}}", subject=f"{self._subject_prefix}.{{ToSnakeCase .GoName}}"),
+            {{- end}}
+            {{- end}}
+        ]
