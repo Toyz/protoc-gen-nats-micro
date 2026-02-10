@@ -21,3 +21,4 @@ jobs:
         with:
           buf_token: ${{ secrets.BUF_TOKEN }}
           input: extensions/proto
+          create_visibility: public
