@@ -44,12 +44,28 @@ func (l *GoLanguage) Generate(g *protogen.GeneratedFile, file *protogen.File, se
 	g.P(errorsBuf.String())
 	g.P()
 
+	// Generate stream helpers (constants, transport types)
+	var streamHelpersBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&streamHelpersBuf, "stream_helpers.go.tmpl", data); err != nil {
+		return fmt.Errorf("execute stream helpers template: %w", err)
+	}
+	g.P(streamHelpersBuf.String())
+	g.P()
+
 	// Generate service
 	var serviceBuf bytes.Buffer
 	if err := l.templates.ExecuteTemplate(&serviceBuf, "service.go.tmpl", data); err != nil {
 		return fmt.Errorf("execute service template: %w", err)
 	}
 	g.P(serviceBuf.String())
+	g.P()
+
+	// Generate per-service stream types
+	var streamBuf bytes.Buffer
+	if err := l.templates.ExecuteTemplate(&streamBuf, "stream.go.tmpl", data); err != nil {
+		return fmt.Errorf("execute stream template: %w", err)
+	}
+	g.P(streamBuf.String())
 	g.P()
 
 	// Generate client

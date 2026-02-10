@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package streaming.v1;
+
+import "natsmicro/options.proto";
+
+option go_package = "example/gen/streaming/v1";
+
+// StreamDemoService demonstrates streaming RPC patterns over NATS.
+service StreamDemoService {
+  option (natsmicro.service) = {
+    subject_prefix : "api.v1.stream"
+    name : "stream_demo_service"
+    version : "1.0.0"
+    description : "Demonstrates server, client, and bidi streaming RPCs"
+  };
+
+  // Unary RPC — standard request/response.
+  rpc Ping(PingRequest) returns (PingResponse) {
+    option (natsmicro.endpoint) = {
+      timeout : {seconds : 5}
+    };
+  }
+
+  // Server-streaming RPC — client sends one request, server sends many
+  // responses. Example: subscribe to a feed of numbers or events.
+  rpc CountUp(CountUpRequest) returns (stream CountUpResponse) {}
+
+  // Client-streaming RPC — client sends many requests, server collapses into
+  // one response. Example: upload chunks that are aggregated into a summary.
+  rpc Sum(stream SumRequest) returns (SumResponse) {}
+
+  // Bidirectional-streaming RPC — both sides send streams concurrently.
+  // Example: a live chat or echo service.
+  rpc Chat(stream ChatMessage) returns (stream ChatMessage) {}
+}
+
+// --- Messages ---
+
+message PingRequest { string payload = 1; }
+message PingResponse {
+  string payload = 1;
+  int64 timestamp = 2;
+}
+
+message CountUpRequest {
+  int32 start = 1;
+  int32 count = 2; // how many numbers to emit
+}
+
+message CountUpResponse {
+  int32 number = 1;
+  string timestamp = 2;
+}
+
+message SumRequest { int64 value = 1; }
+message SumResponse {
+  int64 total = 1;
+  int32 count = 2;
+}
+
+message ChatMessage {
+  string user = 1;
+  string text = 2;
+  string timestamp = 3;
+}

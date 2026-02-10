@@ -15,6 +15,7 @@ export interface I{{.Service.GoName}}NatsClient {
 {{- range .Service.Methods}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
   {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}, opts?: RequestOptions): Promise<pb.{{.Output.GoIdent.GoName}}>;
 {{- if $endpointOpts.KVStore}}
   get{{.GoName}}FromKV(key: string): Promise<pb.{{.Output.GoIdent.GoName}}>;
@@ -23,6 +24,11 @@ export interface I{{.Service.GoName}}NatsClient {
 {{- if $endpointOpts.ObjectStore}}
   get{{.GoName}}FromObjectStore(key: string): Promise<pb.{{.Output.GoIdent.GoName}}>;
   put{{.GoName}}ToObjectStore(key: string, val: pb.{{.Output.GoIdent.GoName}}): Promise<void>;
+{{- end}}
+{{- else if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+  {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}): Promise<ClientStreamReceiver<pb.{{.Output.GoIdent.GoName}}>>;
+{{- end}}
 {{- end}}
 {{- end}}
 {{- end}}
@@ -70,6 +76,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
 {{range .Service.Methods -}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
   /**
    * {{.GoName}} sends a {{.GoName}} request to the service via NATS.
    * @param request - The request message
@@ -199,6 +206,37 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
   }
 {{- end}}
 
+{{- end}}{{/* end IsUnary */}}
+
+{{- if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+  /**
+   * {{.GoName}} initiates a server-streaming RPC call.
+   * Returns a receiver that yields response messages from the server.
+   */
+  async {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}): Promise<ClientStreamReceiver<pb.{{.Output.GoIdent.GoName}}>> {
+    const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
+    const data = pb.{{.Input.GoIdent.GoName}}.toBinary(request);
+    
+    // Create inbox for receiving streamed responses
+    const inbox = this.nc.options.inboxPrefix 
+      ? `${this.nc.options.inboxPrefix}.${Date.now()}.${Math.random().toString(36).slice(2)}`
+      : `_INBOX.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    
+    const sub = this.nc.subscribe(inbox);
+    
+    // Send request with inbox as Reply-To
+    const h = headers();
+    h.set('Reply-To', inbox);
+    this.nc.publish(subject, data, { headers: h });
+    
+    return new ClientStreamReceiver<pb.{{.Output.GoIdent.GoName}}>(sub, (msgData: Uint8Array) => {
+      return pb.{{.Output.GoIdent.GoName}}.fromBinary(msgData);
+    });
+  }
+{{- end}}
+{{- end}}
+
 {{end -}}
 {{end -}}
   /**
@@ -214,5 +252,43 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
 {{- end}}
 {{- end}}
     ];
+  }
+}
+
+/**
+ * ClientStreamReceiver receives streamed messages from the server
+ */
+export class ClientStreamReceiver<T> {
+  private done = false;
+
+  constructor(
+    private readonly sub: any,
+    private readonly decoder: (data: Uint8Array) => T
+  ) {}
+
+  /**
+   * Async iterator for receiving streamed messages
+   */
+  async *[Symbol.asyncIterator](): AsyncIterableIterator<T> {
+    for await (const msg of this.sub) {
+      if (msg.headers?.get('Nats-Stream-End') === 'true') {
+        // Check for error
+        const status = msg.headers?.get('Status');
+        if (status) {
+          const desc = msg.headers?.get('Description') || 'Stream error';
+          throw new Error(`Stream error [${status}]: ${desc}`);
+        }
+        this.done = true;
+        break;
+      }
+      yield this.decoder(msg.data);
+    }
+  }
+
+  /**
+   * Close the stream subscription
+   */
+  close(): void {
+    this.sub.unsubscribe();
   }
 }

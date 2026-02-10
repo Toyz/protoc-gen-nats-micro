@@ -5,6 +5,7 @@ type {{.Service.GoName}}NatsClientInterface interface {
 {{- range .Service.Methods}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
   {{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
 {{- if $endpointOpts.KVStore}}
   Get{{.GoName}}FromKV(ctx context.Context, key string) (*{{.Output.GoIdent.GoName}}, error)
@@ -13,6 +14,19 @@ type {{.Service.GoName}}NatsClientInterface interface {
 {{- if $endpointOpts.ObjectStore}}
   Get{{.GoName}}FromObjectStore(ctx context.Context, key string) (*{{.Output.GoIdent.GoName}}, error)
   Put{{.GoName}}ToObjectStore(ctx context.Context, key string, val *{{.Output.GoIdent.GoName}}) error
+{{- end}}
+{{- else if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+  {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error)
+{{- end}}
+{{- end}}
+{{- if IsBidiStreaming .}}
+  {{.GoName}}(ctx context.Context) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error)
+{{- end}}
+{{- if IsClientStreaming .}}
+{{- if not (IsServerStreaming .)}}
+  {{.GoName}}(ctx context.Context) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error)
+{{- end}}
 {{- end}}
 {{- end}}
 {{- end}}
@@ -57,6 +71,7 @@ func New{{.Service.GoName}}NatsClient(nc *nats.Conn, opts ...NatsClientOption) {
 {{range .Service.Methods -}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
 // {{.GoName}} sends a {{.GoName}} request to the service via NATS.
 // Returns an error if the request fails or the service returns an error.
 func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error) {
@@ -266,6 +281,311 @@ func (c *{{$.Service.GoName}}NatsClient) Put{{.GoName}}ToObjectStore(ctx context
 }
 {{- end}}
 
+{{- end}}{{/* end IsUnary */}}
+
+{{- if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+// {{$.Service.GoName}}_{{.GoName}}_ClientStream is the client-side stream receiver for {{.GoName}}.
+type {{$.Service.GoName}}_{{.GoName}}_ClientStream struct {
+  receiver *ClientStreamReceiver
+  useJSON  bool
+}
+
+// Recv blocks until the next response message arrives from the server.
+// Returns an error containing "EOF" when the stream is complete.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Recv(ctx context.Context) (*{{.Output.GoIdent.GoName}}, error) {
+  msg, err := s.receiver.Recv(ctx)
+  if err != nil {
+    return nil, err
+  }
+  var resp {{.Output.GoIdent.GoName}}
+  if s.useJSON {
+    if err := protojson.Unmarshal(msg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  } else {
+    if err := proto.Unmarshal(msg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  }
+  return &resp, nil
+}
+
+// Close unsubscribes from the stream.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Close() error {
+  return s.receiver.Close()
+}
+
+// {{.GoName}} initiates a server-streaming RPC call.
+// Returns a stream that yields responses from the server.
+func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{{.Input.GoIdent.GoName}}) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error) {
+  subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
+
+  var data []byte
+  var err error
+  if c.useJSON {
+    data, err = protojson.Marshal(req)
+  } else {
+    data, err = proto.Marshal(req)
+  }
+  if err != nil {
+    return nil, fmt.Errorf("failed to marshal request: %w", err)
+  }
+
+  // Create inbox for receiving streamed responses
+  inbox := nats.NewInbox()
+  receiver, err := newClientStreamReceiver(c.nc, inbox, false)
+  if err != nil {
+    return nil, fmt.Errorf("failed to setup stream: %w", err)
+  }
+
+  // Send request with our inbox as Reply-To header
+  msg := &nats.Msg{
+    Subject: subject,
+    Data:    data,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set("Reply-To", inbox)
+
+  // Add outgoing headers from context
+  if headers := OutgoingHeaders(ctx); headers != nil {
+    for k, v := range headers {
+      for _, val := range v {
+        msg.Header.Add(k, val)
+      }
+    }
+  }
+
+  if err := c.nc.PublishMsg(msg); err != nil {
+    receiver.Close()
+    return nil, fmt.Errorf("failed to send streaming request: %w", err)
+  }
+
+  return &{{$.Service.GoName}}_{{.GoName}}_ClientStream{
+    receiver: receiver,
+    useJSON:  c.useJSON,
+  }, nil
+}
+{{- end}}
+{{- end}}
+
+{{- if IsBidiStreaming .}}
+// {{$.Service.GoName}}_{{.GoName}}_ClientStream is the client-side bidi stream for {{.GoName}}.
+type {{$.Service.GoName}}_{{.GoName}}_ClientStream struct {
+  nc       *nats.Conn
+  sendTo   string              // Server's inbox for sending messages
+  receiver *ClientStreamReceiver  // For receiving server messages
+  useJSON  bool
+  seq      int
+  mu       sync.Mutex
+}
+
+// Send sends a message to the server.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Send(msg *{{.Input.GoIdent.GoName}}) error {
+  var data []byte
+  var err error
+  if s.useJSON {
+    data, err = protojson.Marshal(msg)
+  } else {
+    data, err = proto.Marshal(msg)
+  }
+  if err != nil {
+    return fmt.Errorf("failed to marshal stream message: %w", err)
+  }
+  s.mu.Lock()
+  s.seq++
+  seq := s.seq
+  s.mu.Unlock()
+  m := &nats.Msg{
+    Subject: s.sendTo,
+    Data:    data,
+    Header:  nats.Header{},
+  }
+  m.Header.Set(natsStreamSeqHeader, strconv.Itoa(seq))
+  return s.nc.PublishMsg(m)
+}
+
+// Recv blocks until the next response arrives from the server.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Recv(ctx context.Context) (*{{.Output.GoIdent.GoName}}, error) {
+  natsMsg, err := s.receiver.Recv(ctx)
+  if err != nil {
+    return nil, err
+  }
+  var resp {{.Output.GoIdent.GoName}}
+  if s.useJSON {
+    if err := protojson.Unmarshal(natsMsg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  } else {
+    if err := proto.Unmarshal(natsMsg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  }
+  return &resp, nil
+}
+
+// CloseSend signals end of client messages.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) CloseSend() error {
+  m := &nats.Msg{
+    Subject: s.sendTo,
+    Header:  nats.Header{},
+  }
+  m.Header.Set(natsStreamEndHeader, "true")
+  return s.nc.PublishMsg(m)
+}
+
+// Close unsubscribes from server messages.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Close() error {
+  return s.receiver.Close()
+}
+
+// {{.GoName}} initiates a bidirectional streaming RPC call.
+func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error) {
+  subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
+
+  // Create inbox for receiving server responses
+  clientInbox := nats.NewInbox()
+  receiver, err := newClientStreamReceiver(c.nc, clientInbox, false)
+  if err != nil {
+    return nil, fmt.Errorf("failed to setup stream: %w", err)
+  }
+
+  // Send initial handshake to get server's inbox
+  msg := &nats.Msg{
+    Subject: subject,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set("Reply-To", clientInbox)
+
+  ackMsg, err := c.nc.RequestMsgWithContext(ctx, msg)
+  if err != nil {
+    receiver.Close()
+    return nil, fmt.Errorf("failed to initiate bidi stream: %w", err)
+  }
+
+  serverInbox := ackMsg.Header.Get(natsStreamInboxHeader)
+  if serverInbox == "" {
+    receiver.Close()
+    return nil, fmt.Errorf("server did not provide stream inbox")
+  }
+
+  return &{{$.Service.GoName}}_{{.GoName}}_ClientStream{
+    nc:       c.nc,
+    sendTo:   serverInbox,
+    receiver: receiver,
+    useJSON:  c.useJSON,
+  }, nil
+}
+{{- end}}
+
+{{- if IsClientStreaming .}}
+{{- if not (IsServerStreaming .)}}
+// {{$.Service.GoName}}_{{.GoName}}_ClientStream is the client-side sender stream for {{.GoName}}.
+type {{$.Service.GoName}}_{{.GoName}}_ClientStream struct {
+  nc       *nats.Conn
+  sendTo   string              // Server's inbox
+  replyTo  string              // Our inbox for final response
+  useJSON  bool
+  seq      int
+  mu       sync.Mutex
+}
+
+// Send sends a message to the server.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) Send(msg *{{.Input.GoIdent.GoName}}) error {
+  var data []byte
+  var err error
+  if s.useJSON {
+    data, err = protojson.Marshal(msg)
+  } else {
+    data, err = proto.Marshal(msg)
+  }
+  if err != nil {
+    return fmt.Errorf("failed to marshal stream message: %w", err)
+  }
+  s.mu.Lock()
+  s.seq++
+  seq := s.seq
+  s.mu.Unlock()
+  m := &nats.Msg{
+    Subject: s.sendTo,
+    Data:    data,
+    Header:  nats.Header{},
+  }
+  m.Header.Set(natsStreamSeqHeader, strconv.Itoa(seq))
+  return s.nc.PublishMsg(m)
+}
+
+// CloseAndRecv signals end of client messages and waits for the server's response.
+func (s *{{$.Service.GoName}}_{{.GoName}}_ClientStream) CloseAndRecv(ctx context.Context) (*{{.Output.GoIdent.GoName}}, error) {
+  // Send end-of-stream marker
+  m := &nats.Msg{
+    Subject: s.sendTo,
+    Header:  nats.Header{},
+  }
+  m.Header.Set(natsStreamEndHeader, "true")
+  if err := s.nc.PublishMsg(m); err != nil {
+    return nil, fmt.Errorf("failed to close send: %w", err)
+  }
+
+  // Wait for final response on our reply inbox
+  sub, err := s.nc.SubscribeSync(s.replyTo)
+  if err != nil {
+    return nil, fmt.Errorf("failed to subscribe for response: %w", err)
+  }
+  defer sub.Unsubscribe()
+
+  natsMsg, err := sub.NextMsgWithContext(ctx)
+  if err != nil {
+    return nil, fmt.Errorf("failed to receive response: %w", err)
+  }
+
+  var resp {{.Output.GoIdent.GoName}}
+  if s.useJSON {
+    if err := protojson.Unmarshal(natsMsg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode response: %w", err)
+    }
+  } else {
+    if err := proto.Unmarshal(natsMsg.Data, &resp); err != nil {
+      return nil, fmt.Errorf("failed to decode response: %w", err)
+    }
+  }
+  return &resp, nil
+}
+
+// {{.GoName}} initiates a client-streaming RPC call.
+func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context) (*{{$.Service.GoName}}_{{.GoName}}_ClientStream, error) {
+  subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
+
+  // Create inbox for receiving the final response
+  replyInbox := nats.NewInbox()
+
+  // Send initial handshake to get server's inbox
+  msg := &nats.Msg{
+    Subject: subject,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set("Reply-To", replyInbox)
+
+  ackMsg, err := c.nc.RequestMsgWithContext(ctx, msg)
+  if err != nil {
+    return nil, fmt.Errorf("failed to initiate client stream: %w", err)
+  }
+
+  serverInbox := ackMsg.Header.Get(natsStreamInboxHeader)
+  if serverInbox == "" {
+    return nil, fmt.Errorf("server did not provide stream inbox")
+  }
+
+  return &{{$.Service.GoName}}_{{.GoName}}_ClientStream{
+    nc:      c.nc,
+    sendTo:  serverInbox,
+    replyTo: replyInbox,
+    useJSON: c.useJSON,
+  }, nil
+}
+{{- end}}
+{{- end}}
+
 {{end -}}
 {{end -}}
 // Endpoints returns information about all service endpoints this client can call.
@@ -280,4 +600,3 @@ func (c *{{.Service.GoName}}NatsClient) Endpoints() []{{.Service.GoName}}Endpoin
 {{- end}}
   }
 }
-

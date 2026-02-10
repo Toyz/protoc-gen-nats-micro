@@ -33,6 +33,7 @@ class {{$serviceName}}Client:
     {{- range .Service.Methods}}
     {{- $methodOptions := GetEndpointOptions .}}
     {{- if not $methodOptions.Skip}}
+    {{- if IsUnary .}}
     
     async def {{ToSnakeCase .GoName}}(
         self,
@@ -243,6 +244,48 @@ class {{$serviceName}}Client:
         obj = await self._js.object_store("{{$methodOptions.ObjectStore.Bucket}}")
         await obj.put(key, data)
     {{- end}}
+    {{- end}}{{/* end IsUnary */}}
+
+    {{- if IsServerStreaming .}}
+    {{- if not (IsClientStreaming .)}}
+
+    async def {{ToSnakeCase .GoName}}(
+        self,
+        req: pb.{{.Input.GoIdent.GoName}},
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None
+    ) -> "ClientStreamReceiver":
+        """{{.Comments.Leading}} (server-streaming)
+        
+        Returns a ClientStreamReceiver to iterate over streamed responses.
+        """
+        subject = f"{self._subject_prefix}.{{ToSnakeCase .GoName}}"
+        
+        # Serialize request
+        {{- if $serviceOptions.UseJSON}}
+        request_data = MessageToJson(req).encode()
+        {{- else}}
+        request_data = req.SerializeToString()
+        {{- end}}
+        
+        # Create inbox for receiving stream messages
+        inbox = self._nc.new_inbox()
+        sub = await self._nc.subscribe(inbox)
+        
+        # Send request with Reply-To header
+        send_headers = headers.copy() if headers else {}
+        send_headers["Reply-To"] = inbox
+        
+        await self._nc.publish(
+            subject,
+            request_data,
+            headers=send_headers
+        )
+        
+        return ClientStreamReceiver(sub, pb.{{.Output.GoIdent.GoName}}, {{$serviceOptions.UseJSON}})
+    {{- end}}
+    {{- end}}
+
     {{- end}}
     {{- end}}
     
@@ -256,3 +299,44 @@ class {{$serviceName}}Client:
             {{- end}}
             {{- end}}
         ]
+
+
+class ClientStreamReceiver:
+    """Receives streamed messages from a server-streaming RPC"""
+    
+    def __init__(self, sub: Any, msg_class: Any, use_json: bool = False):
+        self._sub = sub
+        self._msg_class = msg_class
+        self._use_json = use_json
+    
+    def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
+        try:
+            msg = await self._sub.next_msg(timeout=30.0)
+        except Exception:
+            raise StopAsyncIteration
+        
+        # Check for end-of-stream
+        if msg.headers:
+            end = msg.headers.get("Nats-Stream-End")
+            if end and (end == "true" or (isinstance(end, list) and end[0] == "true")):
+                # Check for error
+                status = msg.headers.get("Status")
+                if status:
+                    status_str = status[0] if isinstance(status, list) else status
+                    desc = msg.headers.get("Description", "Stream error")
+                    desc_str = desc[0] if isinstance(desc, list) else desc
+                    raise RuntimeError(f"Stream error [{status_str}]: {desc_str}")
+                raise StopAsyncIteration
+        
+        # Parse message
+        if self._use_json:
+            return Parse(msg.data.decode(), self._msg_class())
+        else:
+            return self._msg_class.FromString(msg.data)
+    
+    async def close(self):
+        """Unsubscribe from the stream"""
+        await self._sub.unsubscribe()

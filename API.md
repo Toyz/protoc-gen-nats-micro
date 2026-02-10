@@ -8,6 +8,7 @@ Complete reference for `protoc-gen-nats-micro` proto extension options.
 - [Endpoint Options](#endpoint-options)
 - [KV Store & Object Store](#kv-store--object-store)
 - [Key Templates](#key-templates)
+- [Streaming RPC](#streaming-rpc)
 - [Complete Examples](#complete-examples)
 - [Generated Code Reference](#generated-code-reference)
 
@@ -438,6 +439,189 @@ option (natsmicro.kv_store) = {
   key_template: "user.{user_id}"
 };
 ```
+
+## Streaming RPC
+
+`protoc-gen-nats-micro` supports all three protobuf streaming patterns over NATS. Streaming methods are automatically detected from your proto definitions — no extra options needed.
+
+### Streaming Patterns
+
+| Pattern              | Proto syntax                                | Description                                           |
+| -------------------- | ------------------------------------------- | ----------------------------------------------------- |
+| **Server-streaming** | `rpc Foo(Req) returns (stream Resp)`        | Client sends one request, server sends many responses |
+| **Client-streaming** | `rpc Foo(stream Req) returns (Resp)`        | Client sends many requests, server responds once      |
+| **Bidirectional**    | `rpc Foo(stream Req) returns (stream Resp)` | Both sides send and receive concurrently              |
+
+### Proto Definition
+
+```protobuf
+service StreamDemoService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1.stream"
+  };
+
+  // Unary — business as usual
+  rpc Ping(PingRequest) returns (PingResponse) {}
+
+  // Server-streaming — server sends N responses
+  rpc CountUp(CountUpRequest) returns (stream CountUpResponse) {}
+
+  // Client-streaming — client sends N requests
+  rpc Sum(stream SumRequest) returns (SumResponse) {}
+
+  // Bidi — both sides stream concurrently
+  rpc Chat(stream ChatMessage) returns (stream ChatMessage) {}
+}
+```
+
+### Wire Protocol
+
+Streaming uses NATS pub/sub with custom headers for flow control:
+
+| Header                   | Direction       | Purpose                                                |
+| ------------------------ | --------------- | ------------------------------------------------------ |
+| `Reply-To`               | Client → Server | Client's inbox subject for receiving streamed messages |
+| `Nats-Stream-Inbox`      | Server → Client | Server's inbox (for client-streaming and bidi)         |
+| `Nats-Stream-Seq`        | Server → Client | Sequence number for ordered delivery                   |
+| `Nats-Stream-End`        | Server → Client | `"true"` signals end-of-stream                         |
+| `Status` / `Description` | Server → Client | Error info on the end-of-stream message                |
+
+### Generated Code (Go)
+
+#### Service Interface
+
+Streaming methods get typed stream wrappers instead of simple request/response:
+
+```go
+type StreamDemoServiceNats interface {
+    // Unary - same as before
+    Ping(context.Context, *PingRequest) (*PingResponse, error)
+
+    // Server-streaming: receives request + stream sender
+    CountUp(context.Context, *CountUpRequest, *StreamDemoService_CountUp_Stream) error
+
+    // Client-streaming: receives stream receiver, returns final response
+    Sum(context.Context, *StreamDemoService_Sum_Stream) (*SumResponse, error)
+
+    // Bidi: receives a combined send/recv stream
+    Chat(context.Context, *StreamDemoService_Chat_Stream) error
+}
+```
+
+#### Server Implementation
+
+```go
+// Server-streaming: emit numbers one at a time
+func (s *myService) CountUp(ctx context.Context, req *CountUpRequest, stream *StreamDemoService_CountUp_Stream) error {
+    for i := int32(0); i < req.Count; i++ {
+        if err := stream.Send(&CountUpResponse{Number: req.Start + i}); err != nil {
+            return err
+        }
+    }
+    return nil // stream automatically closed after return
+}
+
+// Client-streaming: aggregate incoming values
+func (s *myService) Sum(ctx context.Context, stream *StreamDemoService_Sum_Stream) (*SumResponse, error) {
+    var total int64
+    var count int32
+    for {
+        msg, err := stream.Recv(ctx)
+        if err != nil {
+            break // EOF or stream ended
+        }
+        total += msg.Value
+        count++
+    }
+    return &SumResponse{Total: total, Count: count}, nil
+}
+
+// Bidi: echo messages back
+func (s *myService) Chat(ctx context.Context, stream *StreamDemoService_Chat_Stream) error {
+    for {
+        msg, err := stream.Recv(ctx)
+        if err != nil {
+            break
+        }
+        stream.Send(&ChatMessage{User: "server", Text: "echo: " + msg.Text})
+    }
+    return nil
+}
+```
+
+#### Client Usage
+
+```go
+client := NewStreamDemoServiceNatsClient(nc)
+
+// Server-streaming
+stream, _ := client.CountUp(ctx, &CountUpRequest{Start: 1, Count: 5})
+for {
+    resp, err := stream.Recv(ctx)
+    if err != nil { break } // EOF
+    fmt.Println(resp.Number)
+}
+stream.Close()
+
+// Client-streaming
+sumStream, _ := client.Sum(ctx)
+sumStream.Send(&SumRequest{Value: 10})
+sumStream.Send(&SumRequest{Value: 20})
+result, _ := sumStream.CloseAndRecv(ctx)
+fmt.Println(result.Total) // 30
+
+// Bidi streaming
+chatStream, _ := client.Chat(ctx)
+chatStream.Send(&ChatMessage{User: "me", Text: "hello"})
+reply, _ := chatStream.Recv(ctx)
+fmt.Println(reply.Text) // "echo: hello"
+chatStream.CloseSend()
+```
+
+### Stream Types Reference
+
+**Server-streaming** (`Send`-only):
+
+| Method                            | Description                        |
+| --------------------------------- | ---------------------------------- |
+| `Send(msg) error`                 | Send a typed message to the client |
+| `Close() error`                   | Send end-of-stream marker          |
+| `CloseWithError(code, msg) error` | Send error + end-of-stream         |
+
+**Client-streaming** (`Recv`-only):
+
+| Method                  | Description                     |
+| ----------------------- | ------------------------------- |
+| `Recv(ctx) (*T, error)` | Block until next message or EOF |
+| `Close() error`         | Unsubscribe from stream         |
+
+**Bidi** (both):
+
+| Method                  | Description                 |
+| ----------------------- | --------------------------- |
+| `Send(msg) error`       | Send to the other side      |
+| `Recv(ctx) (*T, error)` | Receive from the other side |
+| `CloseSend() error`     | Signal end of sending       |
+| `CloseRecv() error`     | Unsubscribe from receiving  |
+
+**Client-side stream** (returned by client methods):
+
+| Client Method       | Returns                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `CountUp(ctx, req)` | `(*CountUp_ClientStream, error)` — call `.Recv()` to iterate         |
+| `Sum(ctx)`          | `(*Sum_ClientStream, error)` — call `.Send()` then `.CloseAndRecv()` |
+| `Chat(ctx)`         | `(*Chat_ClientStream, error)` — call `.Send()` and `.Recv()`         |
+
+### Language Support
+
+| Feature                    | Go  | TypeScript | Python |
+| -------------------------- | :-: | :--------: | :----: |
+| Server-streaming (service) | ✅  |     ✅     |   ✅   |
+| Server-streaming (client)  | ✅  |     ✅     |   ✅   |
+| Client-streaming           | ✅  |     —      |   —    |
+| Bidi-streaming             | ✅  |     —      |   —    |
+
+---
 
 ## Complete Examples
 
@@ -912,3 +1096,4 @@ Final timeouts:
 - [extensions/proto/natsmicro/options.proto](extensions/proto/natsmicro/options.proto) - Proto extension definitions
 - [examples/complex-go/](examples/complex-go/) - Interceptors, headers, error handling
 - [examples/kvstore-go/](examples/kvstore-go/) - KV Store & Object Store auto-persistence
+- [examples/streaming-go/](examples/streaming-go/) - Streaming RPC (server, client, bidi)

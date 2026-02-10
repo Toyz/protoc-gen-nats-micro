@@ -6,6 +6,8 @@ class {{$serviceName}}Handler(Protocol):
     """Handler interface for {{$serviceName}} service"""
     {{- range .Service.Methods}}
     {{- $methodOptions := GetEndpointOptions .}}
+    {{- if not $methodOptions.Skip}}
+    {{- if IsUnary .}}
     
     async def {{ToSnakeCase .GoName}}(
         self,
@@ -14,6 +16,20 @@ class {{$serviceName}}Handler(Protocol):
     ) -> pb.{{.Output.GoIdent.GoName}}:
         """{{.Comments.Leading}}"""
         ...
+    {{- else if IsServerStreaming .}}
+    {{- if not (IsClientStreaming .)}}
+    
+    async def {{ToSnakeCase .GoName}}(
+        self,
+        req: pb.{{.Input.GoIdent.GoName}},
+        stream: "ServerStreamSender",
+        info: ServerInfo
+    ) -> None:
+        """{{.Comments.Leading}} (server-streaming)"""
+        ...
+    {{- end}}
+    {{- end}}
+    {{- end}}
     {{- end}}
 
 
@@ -119,8 +135,9 @@ async def register_{{ToSnakeCase $serviceName}}(
     {{- range .Service.Methods}}
     {{- $methodOptions := GetEndpointOptions .}}
     {{- if not $methodOptions.Skip}}
+    {{- if IsUnary .}}
     
-    # Register {{.GoName}} endpoint
+    # Register {{.GoName}} endpoint (unary)
     async def _handle_{{ToSnakeCase .GoName}}(req: micro.Request) -> None:
         try:
             # Parse request
@@ -249,10 +266,113 @@ async def register_{{ToSnakeCase $serviceName}}(
         }
         {{- end}}
     )
+    {{- end}}{{/* end IsUnary */}}
+
+    {{- if IsServerStreaming .}}
+    {{- if not (IsClientStreaming .)}}
+
+    # Register {{.GoName}} endpoint (server-streaming)
+    async def _handle_{{ToSnakeCase .GoName}}(req: micro.Request) -> None:
+        try:
+            # Parse request
+            {{- if $serviceOptions.UseJSON}}
+            request_msg = Parse(req.data.decode(), pb.{{.Input.GoIdent.GoName}}())
+            {{- else}}
+            request_msg = pb.{{.Input.GoIdent.GoName}}.FromString(req.data)
+            {{- end}}
+
+            headers_dict: Dict[str, str] = {}
+            if req.headers:
+                for key, values in req.headers.items():
+                    if values:
+                        headers_dict[key] = values[0] if isinstance(values, list) else values
+
+            reply_subject = headers_dict.get("Reply-To", "")
+            if not reply_subject:
+                raise ValueError("No Reply-To header for streaming response")
+
+            info = ServerInfo(
+                service="{{$serviceName}}",
+                method="{{.GoName}}",
+                subject=f"{subject_prefix}.{{ToSnakeCase .GoName}}",
+                headers=headers_dict
+            )
+
+            sender = ServerStreamSender(nc, reply_subject)
+            await handler.{{ToSnakeCase .GoName}}(request_msg, sender, info)
+            await sender.close()
+
+        except Exception as e:
+            logging.error(f"[nats-micro] ERROR: {{.GoName}} stream handler failed: {e}")
+
+    await service.add_endpoint(
+        name="{{.GoName}}",
+        handler=_handle_{{ToSnakeCase .GoName}},
+        subject=f"{subject_prefix}.{{ToSnakeCase .GoName}}",
+    )
+    {{- end}}
+    {{- end}}
+
     {{- end}}
     {{- end}}
     
     return {{$serviceName}}Wrapper(service, subject_prefix)
+
+
+class ServerStreamSender:
+    """Server-to-client stream sender for Python"""
+    
+    def __init__(self, nc: nats.NATS, reply_subject: str):
+        self._nc = nc
+        self._reply_subject = reply_subject
+        self._seq = 0
+        self._closed = False
+    
+    async def send(self, data: bytes) -> None:
+        """Send raw bytes to the client"""
+        if self._closed:
+            raise RuntimeError("Stream is closed")
+        self._seq += 1
+        await self._nc.publish(
+            self._reply_subject,
+            data,
+            headers={"Nats-Stream-Seq": str(self._seq)}
+        )
+    
+    async def send_msg(self, msg: Any, use_json: bool = False) -> None:
+        """Serialize and send a protobuf message"""
+        if use_json:
+            from google.protobuf.json_format import MessageToJson
+            data = MessageToJson(msg).encode()
+        else:
+            data = msg.SerializeToString()
+        await self.send(data)
+    
+    async def close(self) -> None:
+        """Send end-of-stream marker"""
+        if self._closed:
+            return
+        self._closed = True
+        await self._nc.publish(
+            self._reply_subject,
+            b'',
+            headers={"Nats-Stream-End": "true"}
+        )
+    
+    async def close_with_error(self, code: str, message: str) -> None:
+        """Send error and close"""
+        if self._closed:
+            return
+        self._closed = True
+        await self._nc.publish(
+            self._reply_subject,
+            b'',
+            headers={
+                "Nats-Stream-End": "true",
+                "Status": code,
+                "Description": message
+            }
+        )
 
 
 class {{$serviceName}}Wrapper:

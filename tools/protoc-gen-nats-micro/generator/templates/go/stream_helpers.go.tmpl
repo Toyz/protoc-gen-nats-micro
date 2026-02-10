@@ -1,0 +1,186 @@
+{{- /* Stream helpers — constants and utility types for streaming RPC */ -}}
+// Stream protocol header constants
+const (
+  natsStreamSeqHeader   = "Nats-Stream-Seq"
+  natsStreamEndHeader   = "Nats-Stream-End"
+  natsStreamInboxHeader = "Nats-Stream-Inbox"
+  natsStreamErrorHeader = "Nats-Stream-Error"
+)
+
+// ServerStreamSender is the server-side interface for sending streaming responses
+type ServerStreamSender interface {
+  // Send publishes one message to the client
+  Send(data []byte) error
+  // SendMsg serializes and sends a proto message to the client
+  SendMsg(msg proto.Message, useJSON bool) error
+  // Close sends the end-of-stream marker to the client
+  Close() error
+  // CloseWithError sends an error and end-of-stream marker to the client
+  CloseWithError(code string, message string) error
+}
+
+// serverStreamSender implements ServerStreamSender using NATS publish
+type serverStreamSender struct {
+  nc      *nats.Conn
+  subject string // The client's reply inbox
+  seq     int
+  mu      sync.Mutex
+  closed  bool
+}
+
+func newServerStreamSender(nc *nats.Conn, replySubject string) *serverStreamSender {
+  return &serverStreamSender{
+    nc:      nc,
+    subject: replySubject,
+    seq:     0,
+  }
+}
+
+func (s *serverStreamSender) Send(data []byte) error {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+  if s.closed {
+    return errors.New("stream is closed")
+  }
+  s.seq++
+  msg := &nats.Msg{
+    Subject: s.subject,
+    Data:    data,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set(natsStreamSeqHeader, strconv.Itoa(s.seq))
+  return s.nc.PublishMsg(msg)
+}
+
+func (s *serverStreamSender) SendMsg(msg proto.Message, useJSON bool) error {
+  var data []byte
+  var err error
+  if useJSON {
+    data, err = protojson.Marshal(msg)
+  } else {
+    data, err = proto.Marshal(msg)
+  }
+  if err != nil {
+    return fmt.Errorf("failed to marshal stream message: %w", err)
+  }
+  return s.Send(data)
+}
+
+func (s *serverStreamSender) Close() error {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+  if s.closed {
+    return nil
+  }
+  s.closed = true
+  msg := &nats.Msg{
+    Subject: s.subject,
+    Data:    nil,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set(natsStreamEndHeader, "true")
+  return s.nc.PublishMsg(msg)
+}
+
+func (s *serverStreamSender) CloseWithError(code string, message string) error {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+  if s.closed {
+    return nil
+  }
+  s.closed = true
+  msg := &nats.Msg{
+    Subject: s.subject,
+    Data:    nil,
+    Header:  nats.Header{},
+  }
+  msg.Header.Set(natsStreamEndHeader, "true")
+  msg.Header.Set("Status", code)
+  msg.Header.Set("Description", message)
+  return s.nc.PublishMsg(msg)
+}
+
+// ClientStreamReceiver receives streaming messages from a server
+type ClientStreamReceiver struct {
+  sub       *nats.Subscription
+  msgCh     chan *nats.Msg
+  done      chan struct{}
+  lastErr   error
+  ordered   bool
+  lastSeq   int
+  mu        sync.Mutex
+}
+
+func newClientStreamReceiver(nc *nats.Conn, inbox string, ordered bool) (*ClientStreamReceiver, error) {
+  msgCh := make(chan *nats.Msg, 64)
+  done := make(chan struct{})
+
+  sub, err := nc.Subscribe(inbox, func(msg *nats.Msg) {
+    // Check for end-of-stream
+    if msg.Header.Get(natsStreamEndHeader) == "true" {
+      close(done)
+      return
+    }
+    select {
+    case msgCh <- msg:
+    case <-done:
+    }
+  })
+  if err != nil {
+    return nil, fmt.Errorf("failed to subscribe to stream inbox: %w", err)
+  }
+
+  return &ClientStreamReceiver{
+    sub:     sub,
+    msgCh:   msgCh,
+    done:    done,
+    ordered: ordered,
+  }, nil
+}
+
+// Recv blocks until the next message arrives or the stream ends.
+// Returns nil, io.EOF when the stream is complete.
+// Returns the raw NATS message for caller to decode.
+func (r *ClientStreamReceiver) Recv(ctx context.Context) (*nats.Msg, error) {
+  select {
+  case msg, ok := <-r.msgCh:
+    if !ok {
+      return nil, fmt.Errorf("stream closed")
+    }
+    // Check for error in stream
+    if status := msg.Header.Get("Status"); status != "" {
+      desc := msg.Header.Get("Description")
+      return nil, fmt.Errorf("stream error [%s]: %s", status, desc)
+    }
+    // Enforce ordering if requested
+    if r.ordered {
+      seqStr := msg.Header.Get(natsStreamSeqHeader)
+      if seqStr != "" {
+        seq, _ := strconv.Atoi(seqStr)
+        r.mu.Lock()
+        expected := r.lastSeq + 1
+        r.lastSeq = seq
+        r.mu.Unlock()
+        if seq != expected {
+          return nil, fmt.Errorf("out-of-order stream message: got seq %d, expected %d", seq, expected)
+        }
+      }
+    }
+    return msg, nil
+  case <-r.done:
+    return nil, fmt.Errorf("EOF")
+  case <-ctx.Done():
+    return nil, ctx.Err()
+  }
+}
+
+// Close unsubscribes from the stream
+func (r *ClientStreamReceiver) Close() error {
+  return r.sub.Unsubscribe()
+}
+
+// Suppress unused import warnings
+var (
+  _ = strconv.Itoa
+  _ = sync.Mutex{}
+)

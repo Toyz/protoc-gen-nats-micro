@@ -9,7 +9,21 @@ type {{.Service.GoName}}Nats interface {
 {{- range .Service.Methods}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
 	{{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}) (*{{.Output.GoIdent.GoName}}, error)
+{{- else if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+	{{.GoName}}(context.Context, *{{.Input.GoIdent.GoName}}, *{{$.Service.GoName}}_{{.GoName}}_Stream) error
+{{- end}}
+{{- end}}
+{{- if IsClientStreaming .}}
+{{- if not (IsServerStreaming .)}}
+	{{.GoName}}(context.Context, *{{$.Service.GoName}}_{{.GoName}}_Stream) (*{{.Output.GoIdent.GoName}}, error)
+{{- end}}
+{{- end}}
+{{- if IsBidiStreaming .}}
+	{{.GoName}}(context.Context, *{{$.Service.GoName}}_{{.GoName}}_Stream) error
+{{- end}}
 {{- end}}
 {{- end}}
 }
@@ -97,6 +111,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 	}
 
 	handlers := &{{ToLowerFirst .Service.GoName}}Handlers{
+		nc:             nc,
 		impl:           impl,
 		serviceTimeout: cfg.timeout,
 		useJSON:        {{.Options.UseJSON}},
@@ -107,6 +122,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 	// Auto-create KV and Object Store buckets if JetStream is available
 	if cfg.js != nil {
 		ctx := context.Background()
+		_ = ctx
 		{{- range .Service.Methods}}
 		{{- $eopts := GetEndpointOptions .}}
 		{{- if $eopts.KVStore}}
@@ -196,6 +212,7 @@ func Register{{.Service.GoName}}Handlers(nc *nats.Conn, impl {{.Service.GoName}}
 
 // {{ToLowerFirst .Service.GoName}}Handlers wraps the service implementation with NATS handlers
 type {{ToLowerFirst .Service.GoName}}Handlers struct {
+	nc             *nats.Conn                 // NATS connection for streaming
 	impl           {{.Service.GoName}}Nats
 	serviceTimeout time.Duration              // Default timeout for all endpoints
 	useJSON        bool                       // Use JSON encoding instead of binary protobuf
@@ -206,6 +223,7 @@ type {{ToLowerFirst .Service.GoName}}Handlers struct {
 {{range .Service.Methods -}}
 {{- $endpointOpts := GetEndpointOptions .}}
 {{- if not $endpointOpts.Skip}}
+{{- if IsUnary .}}
 func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
 	// Determine effective timeout: endpoint-specific timeout overrides service timeout
 	// If endpoint timeout is set (> 0), use it; otherwise use service timeout
@@ -367,5 +385,175 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 		}
 	}
 }
+{{- end}}{{/* end IsUnary */}}
+
+{{- if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+// {{.GoName}} handles server-side streaming RPC.
+// Client sends a single request; server streams back multiple responses.
+func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	ctx := context.Background()
+	{{- if gt $endpointOpts.Timeout.Nanoseconds 0}}
+	ctx, cancel := context.WithTimeout(ctx, {{$endpointOpts.Timeout.Seconds}} * time.Second)
+	defer cancel()
+	{{- end}}
+
+	if req.Headers() != nil {
+		ctx = WithIncomingHeaders(ctx, req.Headers())
+	}
+
+	var msg {{.Input.GoIdent.GoName}}
+	if h.useJSON {
+		if err := protojson.Unmarshal(req.Data(), &msg); err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
+			return
+		}
+	} else {
+		if err := proto.Unmarshal(req.Data(), &msg); err != nil {
+			req.Error({{$.Service.GoName}}ErrCodeInvalidArgument, fmt.Sprintf("failed to decode request: %v", err), nil)
+			return
+		}
+	}
+
+	// Get the client's reply subject from the NATS request
+	replySubject := req.Headers().Get("Reply-To")
+	if replySubject == "" {
+		// Fall back to using the NATS request reply subject
+		// We need to signal to the client that we're starting a stream
+		// First, acknowledge the request by responding with the stream inbox
+		inbox := nats.NewInbox()
+		replySubject = inbox
+		ackHeader := nats.Header{}
+		ackHeader.Set(natsStreamInboxHeader, inbox)
+		req.Respond(nil, micro.WithHeaders(micro.Headers(ackHeader)))
+	}
+
+	sender := newServerStreamSender(h.nc, replySubject)
+	stream := &{{$.Service.GoName}}_{{.GoName}}_Stream{
+		sender:  sender,
+		useJSON: h.useJSON,
+	}
+
+	if err := h.impl.{{.GoName}}(ctx, &msg, stream); err != nil {
+		sender.CloseWithError({{$.Service.GoName}}ErrCodeInternal, err.Error())
+		return
+	}
+	sender.Close()
+}
+{{- end}}
+{{- end}}
+
+{{- if IsClientStreaming .}}
+{{- if not (IsServerStreaming .)}}
+// {{.GoName}} handles client-side streaming RPC.
+// Client streams multiple requests; server responds once.
+func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	ctx := context.Background()
+	{{- if gt $endpointOpts.Timeout.Nanoseconds 0}}
+	ctx, cancel := context.WithTimeout(ctx, {{$endpointOpts.Timeout.Seconds}} * time.Second)
+	defer cancel()
+	{{- end}}
+
+	if req.Headers() != nil {
+		ctx = WithIncomingHeaders(ctx, req.Headers())
+	}
+
+	// Create an inbox for receiving the client's stream messages
+	inbox := nats.NewInbox()
+	receiver, err := newClientStreamReceiver(h.nc, inbox, false)
+	if err != nil {
+		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to setup stream: %v", err), nil)
+		return
+	}
+	defer receiver.Close()
+
+	// Tell the client where to send stream messages
+	ackHeader := nats.Header{}
+	ackHeader.Set(natsStreamInboxHeader, inbox)
+	req.Respond(nil, micro.WithHeaders(micro.Headers(ackHeader)))
+
+	stream := &{{$.Service.GoName}}_{{.GoName}}_Stream{
+		receiver: receiver,
+		useJSON:  h.useJSON,
+	}
+
+	resp, err := h.impl.{{.GoName}}(ctx, stream)
+	if err != nil {
+		// Cannot send error via req since we already responded with ack
+		log.Printf("[nats-micro] ERROR: {{.GoName}} client stream handler failed: %v", err)
+		return
+	}
+
+	// Send final response back via the original reply subject
+	var data []byte
+	if h.useJSON {
+		data, err = protojson.Marshal(resp)
+	} else {
+		data, err = proto.Marshal(resp)
+	}
+	if err != nil {
+		log.Printf("[nats-micro] ERROR: failed to marshal {{.GoName}} response: %v", err)
+		return
+	}
+
+	// Publish the final response to the client's reply inbox
+	// The client will have subscribed for the reply
+	replySubject := req.Headers().Get("Reply-To")
+	if replySubject != "" {
+		h.nc.Publish(replySubject, data)
+	}
+}
+{{- end}}
+{{- end}}
+
+{{- if IsBidiStreaming .}}
+// {{.GoName}} handles bidirectional streaming RPC.
+// Both client and server can send and receive messages concurrently.
+func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Request) {
+	ctx := context.Background()
+	{{- if gt $endpointOpts.Timeout.Nanoseconds 0}}
+	ctx, cancel := context.WithTimeout(ctx, {{$endpointOpts.Timeout.Seconds}} * time.Second)
+	defer cancel()
+	{{- end}}
+
+	if req.Headers() != nil {
+		ctx = WithIncomingHeaders(ctx, req.Headers())
+	}
+
+	// Create inbox for receiving client stream messages
+	serverInbox := nats.NewInbox()
+	receiver, err := newClientStreamReceiver(h.nc, serverInbox, false)
+	if err != nil {
+		req.Error({{$.Service.GoName}}ErrCodeInternal, fmt.Sprintf("failed to setup stream: %v", err), nil)
+		return
+	}
+	defer receiver.Close()
+
+	// Get/create the reply subject for server→client messages
+	clientInbox := req.Headers().Get("Reply-To")
+	if clientInbox == "" {
+		clientInbox = nats.NewInbox()
+	}
+
+	// Tell the client where to send its stream messages and where we'll send ours
+	ackHeader := nats.Header{}
+	ackHeader.Set(natsStreamInboxHeader, serverInbox)
+	req.Respond(nil, micro.WithHeaders(micro.Headers(ackHeader)))
+
+	sender := newServerStreamSender(h.nc, clientInbox)
+	stream := &{{$.Service.GoName}}_{{.GoName}}_Stream{
+		sender:   sender,
+		receiver: receiver,
+		useJSON:  h.useJSON,
+	}
+
+	if err := h.impl.{{.GoName}}(ctx, stream); err != nil {
+		sender.CloseWithError({{$.Service.GoName}}ErrCodeInternal, err.Error())
+		return
+	}
+	sender.Close()
+}
+{{- end}}
+
 {{end}}
 {{end}}

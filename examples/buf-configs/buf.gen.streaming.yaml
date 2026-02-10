@@ -1,0 +1,16 @@
+version: v2
+managed:
+  enabled: false
+plugins:
+  # Standard protobuf Go generation
+  - local: protoc-gen-go
+    out: examples/streaming-go/gen
+    opt:
+      - module=example/gen
+
+  # Our custom NATS micro generation (Go)
+  - local: tools/protoc-gen-nats-micro/protoc-gen-nats-micro
+    out: examples/streaming-go/gen
+    opt:
+      - module=example/gen
+      - language=go

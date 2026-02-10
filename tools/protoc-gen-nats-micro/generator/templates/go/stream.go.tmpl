@@ -1,0 +1,111 @@
+{{- /* Per-service streaming types */ -}}
+{{- range .Service.Methods}}
+{{- $endpointOpts := GetEndpointOptions .}}
+{{- if not $endpointOpts.Skip}}
+
+{{- if IsServerStreaming .}}
+{{- if not (IsClientStreaming .)}}
+// {{$.Service.GoName}}_{{.GoName}}_Stream is the server-side stream for {{.GoName}}.
+// The server calls Send() to push responses to the client.
+type {{$.Service.GoName}}_{{.GoName}}_Stream struct {
+  sender ServerStreamSender
+  useJSON bool
+}
+
+// Send serializes and sends a response message to the client.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Send(msg *{{.Output.GoIdent.GoName}}) error {
+  return s.sender.SendMsg(msg, s.useJSON)
+}
+
+// Close sends the end-of-stream marker.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Close() error {
+  return s.sender.Close()
+}
+
+// CloseWithError sends an error and closes the stream.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) CloseWithError(code string, message string) error {
+  return s.sender.CloseWithError(code, message)
+}
+{{- end}}
+{{- end}}
+
+{{- if IsBidiStreaming .}}
+// {{$.Service.GoName}}_{{.GoName}}_Stream is the bidirectional stream for {{.GoName}}.
+type {{$.Service.GoName}}_{{.GoName}}_Stream struct {
+  sender   ServerStreamSender
+  receiver *ClientStreamReceiver
+  useJSON  bool
+}
+
+// Send serializes and sends a response message to the client.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Send(msg *{{.Output.GoIdent.GoName}}) error {
+  return s.sender.SendMsg(msg, s.useJSON)
+}
+
+// Recv blocks until the next client message arrives.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Recv(ctx context.Context) (*{{.Input.GoIdent.GoName}}, error) {
+  natsMsg, err := s.receiver.Recv(ctx)
+  if err != nil {
+    return nil, err
+  }
+  var msg {{.Input.GoIdent.GoName}}
+  if s.useJSON {
+    if err := protojson.Unmarshal(natsMsg.Data, &msg); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  } else {
+    if err := proto.Unmarshal(natsMsg.Data, &msg); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  }
+  return &msg, nil
+}
+
+// CloseSend sends the end-of-stream marker to the client.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) CloseSend() error {
+  return s.sender.Close()
+}
+
+// CloseRecv unsubscribes from client messages.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) CloseRecv() error {
+  return s.receiver.Close()
+}
+{{- end}}
+
+{{- if IsClientStreaming .}}
+{{- if not (IsServerStreaming .)}}
+// {{$.Service.GoName}}_{{.GoName}}_Stream is the server-side client-streaming handler for {{.GoName}}.
+// The server calls Recv() to read messages from the client.
+type {{$.Service.GoName}}_{{.GoName}}_Stream struct {
+  receiver *ClientStreamReceiver
+  useJSON  bool
+}
+
+// Recv blocks until the next client message arrives.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Recv(ctx context.Context) (*{{.Input.GoIdent.GoName}}, error) {
+  natsMsg, err := s.receiver.Recv(ctx)
+  if err != nil {
+    return nil, err
+  }
+  var msg {{.Input.GoIdent.GoName}}
+  if s.useJSON {
+    if err := protojson.Unmarshal(natsMsg.Data, &msg); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  } else {
+    if err := proto.Unmarshal(natsMsg.Data, &msg); err != nil {
+      return nil, fmt.Errorf("failed to decode stream message: %w", err)
+    }
+  }
+  return &msg, nil
+}
+
+// Close unsubscribes from client messages.
+func (s *{{$.Service.GoName}}_{{.GoName}}_Stream) Close() error {
+  return s.receiver.Close()
+}
+{{- end}}
+{{- end}}
+
+{{- end}}
+{{- end}}
