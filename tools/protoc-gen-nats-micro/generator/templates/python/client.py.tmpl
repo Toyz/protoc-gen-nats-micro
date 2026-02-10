@@ -99,22 +99,22 @@ class {{$serviceName}}Client:
                 )
             
             # Check for error response using standard NATS micro error headers
-            status = None
+            error_code = None
             if msg.headers:
-                status_val = msg.headers.get("Status")
-                if status_val:
-                    status = status_val[0] if isinstance(status_val, list) else status_val
+                code_val = msg.headers.get("Nats-Service-Error-Code")
+                if code_val:
+                    error_code = code_val[0] if isinstance(code_val, list) else code_val
             
-            if status:
-                description = "unknown error"
+            if error_code:
+                error_message = "unknown error"
                 if msg.headers:
-                    desc_val = msg.headers.get("Description")
-                    if desc_val:
-                        description = desc_val[0] if isinstance(desc_val, list) else desc_val
+                    msg_val = msg.headers.get("Nats-Service-Error")
+                    if msg_val:
+                        error_message = msg_val[0] if isinstance(msg_val, list) else msg_val
                 raise {{$serviceName}}Error(
-                    status,
+                    error_code,
                     m,
-                    description,
+                    error_message,
                     msg.data if msg.data else None
                 )
             
@@ -136,7 +136,7 @@ class {{$serviceName}}Client:
             response_headers: Dict[str, str] = {}
             if msg.headers:
                 for key, value in msg.headers.items():
-                    if key not in ("Status", "Description"):
+                    if key not in ("Nats-Service-Error-Code", "Nats-Service-Error"):
                         response_headers[key] = value[0] if isinstance(value, list) else value
             
             return response_msg, response_headers

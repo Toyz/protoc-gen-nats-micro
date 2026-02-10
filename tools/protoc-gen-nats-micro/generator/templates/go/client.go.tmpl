@@ -125,10 +125,10 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
 			if headersPtr, ok := invokerCtx.Value(responseHeadersKey).(*nats.Header); ok && headersPtr != nil {
 				*headersPtr = msg.Header
 			}
-		}    // Check if this is an error response from the service
-    if msg.Header.Get("Status") != "" {
-      code := msg.Header.Get("Status")
-      description := msg.Header.Get("Description")
+		}    // Check if this is an error response from the service (NATS micro headers)
+    if msg.Header.Get("Nats-Service-Error-Code") != "" {
+      code := msg.Header.Get("Nats-Service-Error-Code")
+      description := msg.Header.Get("Nats-Service-Error")
       return &{{$.Service.GoName}}Error{
         Code:    code,
         Method:  method,

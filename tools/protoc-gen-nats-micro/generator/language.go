@@ -107,6 +107,8 @@ func GetLanguage(name string) (Language, error) {
 		return NewTypeScriptLanguage(), nil
 	case "python", "py":
 		return NewPythonLanguage(), nil
+	case "web-ts", "webts":
+		return NewWebTSLanguage(), nil
 	// Future languages:
 	// case "rust":
 	//   return NewRustLanguage(), nil

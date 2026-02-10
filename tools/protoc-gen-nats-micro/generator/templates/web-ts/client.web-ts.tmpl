@@ -1,4 +1,4 @@
-{{- /* Client implementation */ -}}
+{{- /* Client implementation for web-ts (protoc-gen-es v2) */ -}}
 /**
  * Endpoint information for {{.Service.GoName}}
  */
@@ -47,7 +47,7 @@ export interface {{.Service.GoName}}ClientOptions {
 
 /**
  * {{.Service.GoName}}NatsClient is the concrete implementation
- * The client sends requests over NATS using protobuf serialization.
+ * The client sends requests over NATS using protobuf serialization (protoc-gen-es v2).
  */
 export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsClient {
   private readonly nc: NatsConnection;
@@ -58,7 +58,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
 
   /**
    * Create a new NATS client for {{.Service.GoName}}
-   * @param nc - NATS connection
+   * @param nc - NATS connection (from 'nats' or 'nats.ws')
    * @param options - Client configuration options
    */
   constructor(nc: NatsConnection, options?: {{.Service.GoName}}ClientOptions) {
@@ -91,17 +91,17 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     const method = '{{.GoName}}';
     
     // Define the invoker function that performs the actual NATS call
-    const invoker: UnaryInvoker = async (m: string, req: any, reply: any, headers?: MsgHdrs, responseHeaders?: { value?: MsgHdrs }) => {
+    const invoker: UnaryInvoker = async (m: string, req: any, reply: any, hdrs?: MsgHdrs, responseHeaders?: { value?: MsgHdrs }) => {
       const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
       
-      // Serialize request
-      const data = pb.{{.Input.GoIdent.GoName}}.toBinary(req);
+      // Serialize request using protoc-gen-es v2 functional API
+      const data = toBinary(pb.{{.Input.GoIdent.GoName}}Schema, req);
       
       // Send request with optional headers
       const requestOpts: RequestOptions = {
         ...opts,
         timeout: opts?.timeout || this.timeout,
-        headers: headers || opts?.headers,
+        headers: hdrs || opts?.headers,
       };
       
       const msg = await this.nc.request(subject, data, requestOpts);
@@ -118,12 +118,12 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
         throw new {{$.Service.GoName}}Error(errorCode, method, errorMessage, msg.data);
       }
       
-      // Deserialize response into reply object
-      const decoded = pb.{{.Output.GoIdent.GoName}}.fromBinary(msg.data);
+      // Deserialize response using protoc-gen-es v2 functional API
+      const decoded = fromBinary(pb.{{.Output.GoIdent.GoName}}Schema, msg.data);
       Object.assign(reply, decoded);
     };
 
-    const response = {} as pb.{{.Output.GoIdent.GoName}};
+    const response = create(pb.{{.Output.GoIdent.GoName}}Schema) as pb.{{.Output.GoIdent.GoName}};
     const responseHeaders = { value: undefined as MsgHdrs | undefined };
     
     // Execute through interceptor chain if configured
@@ -152,7 +152,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     if (!entry || !entry.value) {
       throw new Error(`KV key "${key}" not found in bucket "{{$endpointOpts.KVStore.Bucket}}"`);
     }
-    return pb.{{.Output.GoIdent.GoName}}.fromBinary(entry.value);
+    return fromBinary(pb.{{.Output.GoIdent.GoName}}Schema, entry.value);
   }
 
   /**
@@ -166,7 +166,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
       throw new Error('JetStream not configured; pass jetstream option to enable KV writes');
     }
     const kv = await this.js.views.kv('{{$endpointOpts.KVStore.Bucket}}');
-    const data = pb.{{.Output.GoIdent.GoName}}.toBinary(val);
+    const data = toBinary(pb.{{.Output.GoIdent.GoName}}Schema, val);
     await kv.put(key, data);
   }
 {{- end}}
@@ -187,7 +187,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     if (!data) {
       throw new Error(`Object "${key}" not found in bucket "{{$endpointOpts.ObjectStore.Bucket}}"`);
     }
-    return pb.{{.Output.GoIdent.GoName}}.fromBinary(data);
+    return fromBinary(pb.{{.Output.GoIdent.GoName}}Schema, data);
   }
 
   /**
@@ -201,7 +201,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
       throw new Error('JetStream not configured; pass jetstream option to enable Object Store writes');
     }
     const obj = await this.js.views.os('{{$endpointOpts.ObjectStore.Bucket}}');
-    const data = pb.{{.Output.GoIdent.GoName}}.toBinary(val);
+    const data = toBinary(pb.{{.Output.GoIdent.GoName}}Schema, val);
     await obj.putBlob({ name: key }, data);
   }
 {{- end}}
@@ -216,7 +216,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
    */
   async {{ToLowerFirst .GoName}}(request: pb.{{.Input.GoIdent.GoName}}): Promise<ClientStreamReceiver<pb.{{.Output.GoIdent.GoName}}>> {
     const subject = `${this.subjectPrefix}.{{ToSnakeCase .GoName}}`;
-    const data = pb.{{.Input.GoIdent.GoName}}.toBinary(request);
+    const data = toBinary(pb.{{.Input.GoIdent.GoName}}Schema, request);
     
     // Create inbox for receiving streamed responses
     const inbox = this.nc.options.inboxPrefix 
@@ -231,7 +231,7 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
     this.nc.publish(subject, data, { headers: h });
     
     return new ClientStreamReceiver<pb.{{.Output.GoIdent.GoName}}>(sub, (msgData: Uint8Array) => {
-      return pb.{{.Output.GoIdent.GoName}}.fromBinary(msgData);
+      return fromBinary(pb.{{.Output.GoIdent.GoName}}Schema, msgData);
     });
   }
 {{- end}}

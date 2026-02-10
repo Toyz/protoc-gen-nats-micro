@@ -30,13 +30,20 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 	}
 
 	// For non-Go languages, don't use Go import path
+	isGo := cfg.Language == "go" || cfg.Language == "golang"
 	var importPath protogen.GoImportPath
-	if cfg.Language == "go" || cfg.Language == "golang" {
+	if isGo {
 		importPath = file.GoImportPath
 	}
 
 	// Generate main file with all services
-	filename := file.GeneratedFilenamePrefix + lang.FileExtension()
+	// For Go, use GeneratedFilenamePrefix (derived from go_package)
+	// For non-Go, use the proto source path (e.g., "auth/v1/auth.proto" -> "auth/v1/auth")
+	filenamePrefix := file.GeneratedFilenamePrefix
+	if !isGo {
+		filenamePrefix = strings.TrimSuffix(file.Proto.GetName(), ".proto")
+	}
+	filename := filenamePrefix + lang.FileExtension()
 	g := gen.NewGeneratedFile(filename, importPath)
 
 	// Generate header (package, imports)
@@ -50,6 +57,10 @@ func GenerateFile(gen *protogen.Plugin, file *protogen.File, cfg Config) error {
 		}
 	} else if pyLang, ok := lang.(*PythonLanguage); ok {
 		if err := pyLang.GenerateHeader(g, file); err != nil {
+			return fmt.Errorf("generate header: %w", err)
+		}
+	} else if webTsLang, ok := lang.(*WebTSLanguage); ok {
+		if err := webTsLang.GenerateHeader(g, file); err != nil {
 			return fmt.Errorf("generate header: %w", err)
 		}
 	}

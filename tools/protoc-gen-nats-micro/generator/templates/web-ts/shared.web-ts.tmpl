@@ -1,0 +1,61 @@
+{{- /* Shared client-only types for web-ts */ -}}
+// Shared types for all NATS microservice clients in this proto file
+
+/**
+ * UnaryInvoker is called by a UnaryClientInterceptor to complete the RPC
+ * Returns response headers via the responseHeaders parameter
+ */
+export type UnaryInvoker = (
+  method: string,
+  request: any,
+  reply: any,
+  headers?: MsgHdrs,
+  responseHeaders?: { value?: MsgHdrs }
+) => Promise<void>;
+
+/**
+ * UnaryClientInterceptor is middleware that can intercept unary RPC calls on the client
+ * It receives the method name, request, reply, optional headers, invoker, and a container for response headers.
+ * The interceptor can inspect/modify requests, handle retries, logging, etc.
+ * It must call invoker(method, req, reply, headers, responseHeaders) to continue the chain.
+ * After invoker completes, responseHeaders.value will contain the server's response headers.
+ */
+export type UnaryClientInterceptor = (
+  method: string,
+  request: any,
+  reply: any,
+  invoker: UnaryInvoker,
+  headers?: MsgHdrs,
+  responseHeaders?: { value?: MsgHdrs }
+) => Promise<void>;
+
+/**
+ * Chain multiple client interceptors into a single interceptor
+ * Interceptors are executed in the order they are provided
+ */
+export function chainUnaryClientInterceptors(
+  interceptors: UnaryClientInterceptor[]
+): UnaryClientInterceptor | undefined {
+  const n = interceptors.length;
+  
+  if (n === 0) {
+    return undefined;
+  }
+  
+  if (n === 1) {
+    return interceptors[0];
+  }
+  
+  return async (method: string, request: any, reply: any, invoker: UnaryInvoker, headers?: MsgHdrs, responseHeaders?: { value?: MsgHdrs }): Promise<void> => {
+    // Build chain from last to first
+    let chainedInvoker = invoker;
+    for (let i = n - 1; i >= 0; i--) {
+      const interceptor = interceptors[i];
+      const nextInvoker = chainedInvoker;
+      chainedInvoker = async (currentMethod: string, currentReq: any, currentReply: any, currentHeaders?: MsgHdrs, currentResponseHeaders?: { value?: MsgHdrs }) => {
+        return interceptor(currentMethod, currentReq, currentReply, nextInvoker, currentHeaders, currentResponseHeaders);
+      };
+    }
+    return chainedInvoker(method, request, reply, headers, responseHeaders);
+  };
+}
