@@ -34,7 +34,6 @@ examples/streaming-go/gen/
 node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
-package-lock.json
 
 # Python
 examples/simple-py/venv/
