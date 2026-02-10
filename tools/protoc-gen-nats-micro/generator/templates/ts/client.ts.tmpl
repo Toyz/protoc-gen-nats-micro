@@ -98,9 +98,14 @@ export class {{.Service.GoName}}NatsClient implements I{{.Service.GoName}}NatsCl
       const data = pb.{{.Input.GoIdent.GoName}}.toBinary(req);
       
       // Send request with optional headers
+      // Timeout priority: caller opts > client-level > proto endpoint default
       const requestOpts: RequestOptions = {
         ...opts,
+        {{- if gt $endpointOpts.Timeout.Nanoseconds 0}}
+        timeout: opts?.timeout || this.timeout || {{$endpointOpts.Timeout.Milliseconds}},
+        {{- else}}
         timeout: opts?.timeout || this.timeout,
+        {{- end}}
         headers: headers || opts?.headers,
       };
       
