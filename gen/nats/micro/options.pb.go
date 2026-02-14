@@ -47,7 +47,12 @@ type ServiceOptions struct {
 	// When true, messages are marshaled/unmarshaled using protojson
 	// (human-readable) When false (default), messages use binary protobuf
 	// encoding (more efficient)
-	Json          bool `protobuf:"varint,8,opt,name=json,proto3" json:"json,omitempty"`
+	Json bool `protobuf:"varint,8,opt,name=json,proto3" json:"json,omitempty"`
+	// Custom application-specific error codes (e.g., "ORDER_EXPIRED",
+	// "PAYMENT_FAILED") These are generated as additional constants,
+	// constructors, and checkers alongside the 7 built-in error codes
+	// (INVALID_ARGUMENT, NOT_FOUND, etc.)
+	ErrorCodes    []string `protobuf:"bytes,9,rep,name=error_codes,json=errorCodes,proto3" json:"error_codes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -136,6 +141,13 @@ func (x *ServiceOptions) GetJson() bool {
 		return x.Json
 	}
 	return false
+}
+
+func (x *ServiceOptions) GetErrorCodes() []string {
+	if x != nil {
+		return x.ErrorCodes
+	}
+	return nil
 }
 
 // Endpoint-level options for individual RPC methods
@@ -509,7 +521,7 @@ var File_natsmicro_options_proto protoreflect.FileDescriptor
 
 const file_natsmicro_options_proto_rawDesc = "" +
 	"\n" +
-	"\x17natsmicro/options.proto\x12\tnatsmicro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\xe6\x02\n" +
+	"\x17natsmicro/options.proto\x12\tnatsmicro\x1a google/protobuf/descriptor.proto\x1a\x1egoogle/protobuf/duration.proto\"\x87\x03\n" +
 	"\x0eServiceOptions\x12%\n" +
 	"\x0esubject_prefix\x18\x01 \x01(\tR\rsubjectPrefix\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -518,7 +530,9 @@ const file_natsmicro_options_proto_rawDesc = "" +
 	"\bmetadata\x18\x05 \x03(\v2'.natsmicro.ServiceOptions.MetadataEntryR\bmetadata\x123\n" +
 	"\atimeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12\x12\n" +
 	"\x04skip\x18\a \x01(\bR\x04skip\x12\x12\n" +
-	"\x04json\x18\b \x01(\bR\x04json\x1a;\n" +
+	"\x04json\x18\b \x01(\bR\x04json\x12\x1f\n" +
+	"\verror_codes\x18\t \x03(\tR\n" +
+	"errorCodes\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdd\x01\n" +

@@ -30,6 +30,9 @@ export enum {{.Service.GoName}}ErrorCode {
   UNAUTHENTICATED = 'UNAUTHENTICATED',
   INTERNAL = 'INTERNAL',
   UNAVAILABLE = 'UNAVAILABLE',
+{{- range .Options.ErrorCodes}}
+  {{.}} = '{{.}}',
+{{- end}}
 }
 
 /**
@@ -143,3 +146,18 @@ export function new{{.Service.GoName}}InternalError(method: string, message: str
 export function new{{.Service.GoName}}UnavailableError(method: string, message: string): {{.Service.GoName}}Error {
   return new {{.Service.GoName}}Error({{.Service.GoName}}ErrorCode.UNAVAILABLE, method, message);
 }
+{{range .Options.ErrorCodes}}
+/**
+ * Create a new {{.}} error
+ */
+export function new{{$.Service.GoName}}{{ToPascalCase .}}Error(method: string, message: string): {{$.Service.GoName}}Error {
+  return new {{$.Service.GoName}}Error({{$.Service.GoName}}ErrorCode.{{.}}, method, message);
+}
+
+/**
+ * Check if the error is a {{.}} error
+ */
+export function is{{$.Service.GoName}}{{ToPascalCase .}}(error: unknown): boolean {
+  return is{{$.Service.GoName}}Error(error) && error.code === {{$.Service.GoName}}ErrorCode.{{.}};
+}
+{{end}}

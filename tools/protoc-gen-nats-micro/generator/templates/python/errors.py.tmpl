@@ -111,3 +111,24 @@ def is_{{ToSnakeCase .Service.GoName}}_internal(err: Exception) -> bool:
 def is_{{ToSnakeCase .Service.GoName}}_unavailable(err: Exception) -> bool:
     """Check if error is UNAVAILABLE"""
     return isinstance(err, {{.Service.GoName}}Error) and err.code == ERROR_CODE_UNAVAILABLE
+{{if .Options.ErrorCodes}}
+
+# Custom error codes defined in proto options
+{{- range .Options.ErrorCodes}}
+ERROR_CODE_{{.}} = "{{.}}"
+{{- end}}
+{{range .Options.ErrorCodes}}
+
+def new_{{ToSnakeCase $.Service.GoName}}_{{ToSnakeCase (ToPascalCase .)}}_error(
+    method: str,
+    message: str
+) -> {{$.Service.GoName}}Error:
+    """Create a {{.}} error"""
+    return {{$.Service.GoName}}Error(ERROR_CODE_{{.}}, method, message)
+
+
+def is_{{ToSnakeCase $.Service.GoName}}_{{ToSnakeCase (ToPascalCase .)}}(err: Exception) -> bool:
+    """Check if error is {{.}}"""
+    return isinstance(err, {{$.Service.GoName}}Error) and err.code == ERROR_CODE_{{.}}
+{{end}}
+{{- end}}

@@ -122,4 +122,25 @@ func New{{.Service.GoName}}UnavailableError(method, message string) error {
 	return &{{.Service.GoName}}Error{Code: {{.Service.GoName}}ErrCodeUnavailable, Method: method, Message: message}
 }
 
+{{- if .Options.ErrorCodes}}
 
+// Custom error codes defined in proto options
+const (
+{{- range .Options.ErrorCodes}}
+	{{$.Service.GoName}}ErrCode{{ToPascalCase .}} = "{{.}}"
+{{- end}}
+)
+
+{{range .Options.ErrorCodes}}
+// New{{$.Service.GoName}}{{ToPascalCase .}}Error creates a new {{.}} error
+func New{{$.Service.GoName}}{{ToPascalCase .}}Error(method, message string) error {
+	return &{{$.Service.GoName}}Error{Code: {{$.Service.GoName}}ErrCode{{ToPascalCase .}}, Method: method, Message: message}
+}
+
+// Is{{$.Service.GoName}}{{ToPascalCase .}} checks if the error is a {{.}} error
+func Is{{$.Service.GoName}}{{ToPascalCase .}}(err error) bool {
+	var svcErr *{{$.Service.GoName}}Error
+	return errors.As(err, &svcErr) && svcErr.Code == {{$.Service.GoName}}ErrCode{{ToPascalCase .}}
+}
+{{end}}
+{{- end}}

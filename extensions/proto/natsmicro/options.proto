@@ -38,6 +38,12 @@ message ServiceOptions {
   // (human-readable) When false (default), messages use binary protobuf
   // encoding (more efficient)
   bool json = 8;
+
+  // Custom application-specific error codes (e.g., "ORDER_EXPIRED",
+  // "PAYMENT_FAILED") These are generated as additional constants,
+  // constructors, and checkers alongside the 7 built-in error codes
+  // (INVALID_ARGUMENT, NOT_FOUND, etc.)
+  repeated string error_codes = 9;
 }
 
 // Endpoint-level options for individual RPC methods

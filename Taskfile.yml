@@ -17,11 +17,14 @@ tasks:
     desc: Generate protobuf extensions (phase 1)
     cmds:
       - buf generate --path extensions/proto/natsmicro/options.proto
+      # The plugin imports from tools/.../nats/micro, so sync the generated file there too
+      - cp gen/nats/micro/options.pb.go tools/protoc-gen-nats-micro/nats/micro/options.pb.go
     sources:
       - extensions/proto/natsmicro/options.proto
       - buf.gen.yaml
     generates:
       - gen/nats/micro/options.pb.go
+      - tools/protoc-gen-nats-micro/nats/micro/options.pb.go
 
   # Phase 2: Build the protoc plugin
   build:plugin:
@@ -85,12 +88,17 @@ tasks:
       - examples/simple-py/gen/**/*_nats_pb2.py
 
   # Phase 3: Generate all languages (Go + TypeScript + Python)
+  # Uses cmds (sequential) instead of deps (parallel) so one missing tool
+  # doesn't cancel the others. Each target is allowed to fail independently.
   generate:
     desc: Generate all protobuf code (Go + TypeScript + Python)
-    deps:
-      - generate:go
-      - generate:ts
-      - generate:python
+    cmds:
+      - task: generate:go
+        ignore_error: true
+      - task: generate:ts
+        ignore_error: true
+      - task: generate:python
+        ignore_error: true
 
   # Clean generated files
   clean:
@@ -108,8 +116,8 @@ tasks:
     deps:
       - generate:go
     cmds:
-      - go build -C examples/complex-go -o server.exe ./server.go
-      - go build -C examples/complex-go -o client.exe ./client.go
+      - go build -C examples/complex-go -o server ./server.go
+      - go build -C examples/complex-go -o client ./client.go
 
   # Build TypeScript examples
   build:ts:

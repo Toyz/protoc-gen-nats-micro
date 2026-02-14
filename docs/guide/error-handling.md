@@ -65,6 +65,74 @@ case ProductServiceErrCodeInternal:
 }
 ```
 
+## Custom Error Codes
+
+Beyond the 7 built-in codes, you can define application-specific error codes in your proto:
+
+```protobuf
+service OrderService {
+  option (natsmicro.service) = {
+    subject_prefix: "api.v1"
+    error_codes: ["ORDER_EXPIRED", "PAYMENT_FAILED", "STOCK_UNAVAILABLE"]
+  };
+}
+```
+
+This generates additional constants, constructors, and checkers alongside the built-in ones.
+
+### Go
+
+```go
+// Generated constants
+const (
+    OrderServiceErrCodeOrderExpired     = "ORDER_EXPIRED"
+    OrderServiceErrCodePaymentFailed    = "PAYMENT_FAILED"
+    OrderServiceErrCodeStockUnavailable = "STOCK_UNAVAILABLE"
+)
+
+// Server: return a custom error
+return nil, NewOrderServiceOrderExpiredError("CreateOrder", "order expired after 30 minutes")
+
+// Client: check for it
+if IsOrderServiceOrderExpired(err) {
+    log.Println("Order expired, please resubmit")
+}
+```
+
+### TypeScript
+
+```typescript
+// Enum values are appended
+enum OrderServiceErrorCode {
+  // ... built-in codes ...
+  ORDER_EXPIRED = "ORDER_EXPIRED",
+  PAYMENT_FAILED = "PAYMENT_FAILED",
+  STOCK_UNAVAILABLE = "STOCK_UNAVAILABLE",
+}
+
+// Constructor + checker
+const err = newOrderServiceOrderExpiredError("CreateOrder", "order expired");
+if (isOrderServiceOrderExpired(err)) {
+  /* handle */
+}
+```
+
+### Python
+
+```python
+# Module-level constants
+ERROR_CODE_ORDER_EXPIRED = "ORDER_EXPIRED"
+ERROR_CODE_PAYMENT_FAILED = "PAYMENT_FAILED"
+ERROR_CODE_STOCK_UNAVAILABLE = "STOCK_UNAVAILABLE"
+
+# Constructor + checker
+err = new_order_service_order_expired_error("CreateOrder", "order expired")
+if is_order_service_order_expired(err):
+    ...
+```
+
+Custom codes are transmitted as strings in the same `Nats-Service-Error-Code` header as built-in codes — no wire format changes required.
+
 ## Custom Error Data
 
 Errors can carry binary payload data for rich error details:

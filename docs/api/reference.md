@@ -6,15 +6,16 @@ Complete reference for `protoc-gen-nats-micro` proto extension options.
 
 Service-level configuration using `option (natsmicro.service)`.
 
-| Option           | Type       | Default                    | Description                                  |
-| ---------------- | ---------- | -------------------------- | -------------------------------------------- |
-| `subject_prefix` | `string`   | Snake-case of service name | NATS subject prefix for all endpoints        |
-| `name`           | `string`   | Service name               | Service name for NATS micro registration     |
-| `version`        | `string`   | `"1.0.0"`                  | Service version                              |
-| `description`    | `string`   | —                          | Human-readable description                   |
-| `timeout`        | `Duration` | No timeout                 | Default timeout for all endpoints            |
-| `use_json`       | `bool`     | `false`                    | Use JSON encoding instead of binary protobuf |
-| `skip`           | `bool`     | `false`                    | Skip NATS code generation for this service   |
+| Option           | Type              | Default                    | Description                                  |
+| ---------------- | ----------------- | -------------------------- | -------------------------------------------- |
+| `subject_prefix` | `string`          | Snake-case of service name | NATS subject prefix for all endpoints        |
+| `name`           | `string`          | Service name               | Service name for NATS micro registration     |
+| `version`        | `string`          | `"1.0.0"`                  | Service version                              |
+| `description`    | `string`          | —                          | Human-readable description                   |
+| `timeout`        | `Duration`        | No timeout                 | Default timeout for all endpoints            |
+| `use_json`       | `bool`            | `false`                    | Use JSON encoding instead of binary protobuf |
+| `skip`           | `bool`            | `false`                    | Skip NATS code generation for this service   |
+| `error_codes`    | `repeated string` | —                          | Custom application-specific error codes      |
 
 ```protobuf
 service ProductService {
@@ -24,6 +25,7 @@ service ProductService {
     version: "2.0.0"
     description: "Product catalog API"
     timeout: {seconds: 30}
+    error_codes: ["OUT_OF_STOCK", "PRICE_CHANGED"]
   };
 }
 ```

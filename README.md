@@ -18,6 +18,7 @@ Write standard `.proto` files, run `buf generate`, get production-ready NATS mic
 Existing NATS code generation tools like [nRPC](https://github.com/nats-rpc/nrpc) were abandoned and didn't integrate with the official `nats.io/micro` framework.
 
 **Key features:**
+
 - Official micro.Service framework integration
 - Type-safe error handling and context propagation
 - Multi-level timeout configuration via `google.protobuf.Duration`
@@ -142,7 +143,7 @@ service OrderService {
       get: "/v1/orders/{id}"
     };
   }
-  
+
   rpc SearchOrders(SearchOrdersRequest) returns (SearchOrdersResponse) {
     option (natsmicro.endpoint) = {
       timeout: {seconds: 60}  // Override: 60s for search operations
@@ -241,7 +242,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Or override timeout at runtime
     _, err = orderv1.RegisterOrderServiceHandlers(nc, svc,
         orderv1.WithTimeout(45 * time.Second),
@@ -300,8 +301,9 @@ gen/order/v1/
 ```
 
 **Demo project also generates** (optional, for comparison):
+
 - `service_grpc.pb.go` - gRPC services
-- `service.pb.gw.go` - REST gateway  
+- `service.pb.gw.go` - REST gateway
 - `service.swagger.yaml` - OpenAPI specs
 
 ### Package-Level Shared File
@@ -361,12 +363,12 @@ svc.Stats()
 Full TypeScript support with same features as Go. See [TYPESCRIPT.md](TYPESCRIPT.md) for details.
 
 ```typescript
-import { connect } from 'nats';
-import { ProductServiceNatsClient } from './gen/product/v1/service_nats.pb';
+import { connect } from "nats";
+import { ProductServiceNatsClient } from "./gen/product/v1/service_nats.pb";
 
-const nc = await connect({ servers: 'nats://localhost:4222' });
+const nc = await connect({ servers: "nats://localhost:4222" });
 const client = new ProductServiceNatsClient(nc);
-const response = await client.getProduct({ id: '123' });
+const response = await client.getProduct({ id: "123" });
 ```
 
 ## Configuration
@@ -385,7 +387,7 @@ service OrderService {
     description: "Order management"
     timeout: {seconds: 30}
   };
-  
+
   rpc SlowOperation(Request) returns (Response) {
     option (natsmicro.endpoint) = {
       timeout: {seconds: 120}
@@ -434,6 +436,7 @@ orderv1.RegisterOrderServiceHandlers(nc, svc,
 Metadata is configured at **service-level** (organizational info) and **endpoint-level** (operation characteristics).
 
 **Service metadata in proto:**
+
 ```protobuf
 service ProductService {
   option (natsmicro.service) = {
@@ -444,6 +447,7 @@ service ProductService {
 ```
 
 **Runtime options:**
+
 ```go
 // Replace all metadata
 productv1.RegisterProductServiceHandlers(nc, svc,
@@ -460,6 +464,7 @@ productv1.RegisterProductServiceHandlers(nc, svc,
 ```
 
 **Endpoint metadata in proto:**
+
 ```protobuf
 rpc GetProduct(...) returns (...) {
   option (natsmicro.endpoint) = {
@@ -506,29 +511,30 @@ clientV2 := orderv2.NewOrderServiceNatsClient(nc)
 Interceptors provide middleware for logging, auth, metrics, and tracing.
 
 ### Server Interceptors
+
 ```go
 func loggingInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
     start := time.Now()
-    
+
     // Read incoming request headers
     if headers := productv1.IncomingHeaders(ctx); headers != nil {
         if traceID, ok := headers["X-Trace-Id"]; ok && len(traceID) > 0 {
             log.Printf("[%s] Trace-ID: %s", info.Method, traceID[0])
         }
     }
-    
+
     // Set response headers that will be sent back to client
     responseHeaders := nats.Header{}
     responseHeaders.Set("X-Server-Version", "1.0.0")
     responseHeaders.Set("X-Request-Id", generateRequestID())
     productv1.SetResponseHeaders(ctx, responseHeaders)
-    
+
     // Call the actual handler
     resp, err := handler(ctx, req)
-    
+
     duration := time.Since(start)
     log.Printf("[%s] completed in %v", info.Method, duration)
-    
+
     return resp, err
 }
 
@@ -539,6 +545,7 @@ productv1.RegisterProductServiceHandlers(nc, impl,
 ```
 
 **Chain multiple:**
+
 ```go
 productv1.RegisterProductServiceHandlers(nc, impl,
     productv1.WithServerInterceptor(authInterceptor),
@@ -548,6 +555,7 @@ productv1.RegisterProductServiceHandlers(nc, impl,
 ```
 
 ### Client Interceptors
+
 ```go
 func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
     // Add request headers
@@ -555,17 +563,17 @@ func clientLoggingInterceptor(ctx context.Context, method string, req, reply int
     headers.Set("X-Trace-Id", generateTraceID())
     headers.Set("X-Client-Version", "1.0.0")
     ctx = productv1.WithOutgoingHeaders(ctx, headers)
-    
+
     // Make the call
     err := invoker(ctx, method, req, reply)
-    
+
     // Read response headers
     if respHeaders := productv1.ResponseHeaders(ctx); respHeaders != nil {
         if serverVer, ok := respHeaders["X-Server-Version"]; ok && len(serverVer) > 0 {
             log.Printf("Server version: %s", serverVer[0])
         }
     }
-    
+
     return err
 }
 
@@ -577,6 +585,7 @@ client := productv1.NewProductServiceNatsClient(nc,
 ### Bidirectional Headers
 
 **Request headers** (client → server):
+
 ```go
 // Client
 ctx = productv1.WithOutgoingHeaders(ctx, headers)
@@ -585,6 +594,7 @@ headers := productv1.IncomingHeaders(ctx)
 ```
 
 **Response headers** (server → client):
+
 ```go
 // Server
 productv1.SetResponseHeaders(ctx, headers)
@@ -626,7 +636,7 @@ This is orchestrated via `go:generate` or Task:
 
 ```bash
 task generate:extensions  # Phase 1
-task build:plugin        # Phase 2  
+task build:plugin        # Phase 2
 task generate           # Phase 3
 ```
 
@@ -646,6 +656,7 @@ Planned: Rust, Python
 ### Error Handling
 
 **Client-side:**
+
 ```go
 product, err := client.GetProduct(ctx, &productv1.GetProductRequest{Id: "123"})
 if productv1.IsProductServiceNotFound(err) {
@@ -656,11 +667,13 @@ if productv1.IsProductServiceNotFound(err) {
 **Server-side (3 options):**
 
 1. Generated error types (recommended):
+
 ```go
 return nil, productv1.NewProductServiceNotFoundError("GetProduct", "not found")
 ```
 
 2. Custom errors (implement `NatsErrorCode()`, `NatsErrorMessage()`, `NatsErrorData()`):
+
 ```go
 type OutOfStockError struct { ProductID string }
 func (e *OutOfStockError) Error() string { return "out of stock" }
@@ -668,13 +681,34 @@ func (e *OutOfStockError) NatsErrorCode() string { return productv1.ProductServi
 ```
 
 3. Generic errors (become INTERNAL):
+
 ```go
 return nil, fmt.Errorf("database error")
 ```
 
-Error codes: `INVALID_ARGUMENT`, `NOT_FOUND`, `ALREADY_EXISTS`, `PERMISSION_DENIED`, `UNAUTHENTICATED`, `INTERNAL`, `UNAVAILABLE`
+Built-in codes: `INVALID_ARGUMENT`, `NOT_FOUND`, `ALREADY_EXISTS`, `PERMISSION_DENIED`, `UNAUTHENTICATED`, `INTERNAL`, `UNAVAILABLE`
 
+**Custom error codes** — define application-specific codes in your proto:
 
+```protobuf
+service OrderService {
+  option (natsmicro.service) = {
+    error_codes: ["ORDER_EXPIRED", "PAYMENT_FAILED", "STOCK_UNAVAILABLE"]
+  };
+}
+```
+
+This generates typed constants, constructors, and checkers for each code:
+
+```go
+// Server
+return nil, orderv1.NewOrderServiceOrderExpiredError("CreateOrder", "expired after 30m")
+
+// Client
+if orderv1.IsOrderServiceOrderExpired(err) {
+    log.Println("Order expired, please resubmit")
+}
+```
 
 ## Development
 
@@ -732,7 +766,7 @@ task clean
 task --list
 
 * build          Build all example applications
-* clean          Remove all generated files  
+* clean          Remove all generated files
 * generate       Generate all protobuf code
 * test           Run all tests
 * nats           Start NATS server in Docker
@@ -746,6 +780,7 @@ task --list
 **Not supported.** NATS micro uses request-reply (1:1), not gRPC-style streaming.
 
 **Alternatives:**
+
 - **Pagination**: Use page tokens for large results
 - **JetStream**: Use NATS JetStream directly for real-time event streams
 - **Multiple calls**: Make sequential unary requests

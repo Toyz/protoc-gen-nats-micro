@@ -7,7 +7,20 @@ import (
 	natspb "github.com/toyz/protoc-gen-nats-micro/tools/protoc-gen-nats-micro/nats/micro"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/runtime/protoimpl"
 )
+
+// getExtension is a generic helper that checks for and retrieves a proto extension
+// in one step, eliminating the repeated nil-check + HasExtension + GetExtension + type-assert chain.
+func getExtension[T any](opts protoreflect.ProtoMessage, ext *protoimpl.ExtensionInfo) (T, bool) {
+	var zero T
+	if opts == nil || !proto.HasExtension(opts, ext) {
+		return zero, false
+	}
+	val, ok := proto.GetExtension(opts, ext).(T)
+	return val, ok
+}
 
 // ServiceOptions contains metadata about a service
 type ServiceOptions struct {
@@ -17,8 +30,9 @@ type ServiceOptions struct {
 	Description   string
 	Metadata      map[string]string
 	Timeout       time.Duration
-	Skip          bool // Skip generation for this service
-	UseJSON       bool // Use JSON encoding instead of binary protobuf
+	Skip          bool     // Skip generation for this service
+	UseJSON       bool     // Use JSON encoding instead of binary protobuf
+	ErrorCodes    []string // Custom application-specific error codes
 }
 
 // GetServiceOptions extracts service options from proto service definition
@@ -37,34 +51,34 @@ func GetServiceOptions(service *protogen.Service) ServiceOptions {
 	}
 
 	// Try to read the nats.micro.service extension
-	if service.Desc.Options() != nil && proto.HasExtension(service.Desc.Options(), natspb.E_Service) {
-		ext := proto.GetExtension(service.Desc.Options(), natspb.E_Service)
-		if svcOpts, ok := ext.(*natspb.ServiceOptions); ok {
-			// Check skip first - if true, mark it and return early
-			if svcOpts.Skip {
-				opts.Skip = true
-				return opts
-			}
+	if svcOpts, ok := getExtension[*natspb.ServiceOptions](service.Desc.Options(), natspb.E_Service); ok {
+		// Check skip first - if true, mark it and return early
+		if svcOpts.Skip {
+			opts.Skip = true
+			return opts
+		}
 
-			if svcOpts.SubjectPrefix != "" {
-				opts.SubjectPrefix = svcOpts.SubjectPrefix
-			}
-			if svcOpts.Name != "" {
-				opts.Name = svcOpts.Name
-			}
-			if svcOpts.Version != "" {
-				opts.Version = svcOpts.Version
-			}
-			if svcOpts.Description != "" {
-				opts.Description = svcOpts.Description
-			}
-			if len(svcOpts.Metadata) > 0 {
-				opts.Metadata = svcOpts.Metadata
-			}
-			if svcOpts.Timeout != nil {
-				opts.Timeout = svcOpts.Timeout.AsDuration()
-			}
-			opts.UseJSON = svcOpts.Json
+		if svcOpts.SubjectPrefix != "" {
+			opts.SubjectPrefix = svcOpts.SubjectPrefix
+		}
+		if svcOpts.Name != "" {
+			opts.Name = svcOpts.Name
+		}
+		if svcOpts.Version != "" {
+			opts.Version = svcOpts.Version
+		}
+		if svcOpts.Description != "" {
+			opts.Description = svcOpts.Description
+		}
+		if len(svcOpts.Metadata) > 0 {
+			opts.Metadata = svcOpts.Metadata
+		}
+		if svcOpts.Timeout != nil {
+			opts.Timeout = svcOpts.Timeout.AsDuration()
+		}
+		opts.UseJSON = svcOpts.Json
+		if len(svcOpts.ErrorCodes) > 0 {
+			opts.ErrorCodes = svcOpts.ErrorCodes
 		}
 	}
 
@@ -114,63 +128,53 @@ func GetEndpointOptions(method *protogen.Method) EndpointOptions {
 		Metadata: make(map[string]string),
 	}
 
-	// Try to read the natsmicro.endpoint extension
-	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_Endpoint) {
-		ext := proto.GetExtension(method.Desc.Options(), natspb.E_Endpoint)
-		if endpointOpts, ok := ext.(*natspb.EndpointOptions); ok {
-			opts.Skip = endpointOpts.Skip
-			if endpointOpts.Timeout != nil {
-				opts.Timeout = endpointOpts.Timeout.AsDuration()
-			}
-			if len(endpointOpts.Metadata) > 0 {
-				opts.Metadata = endpointOpts.Metadata
-			}
+	methodOpts := method.Desc.Options()
+
+	// Endpoint options
+	if endpointOpts, ok := getExtension[*natspb.EndpointOptions](methodOpts, natspb.E_Endpoint); ok {
+		opts.Skip = endpointOpts.Skip
+		if endpointOpts.Timeout != nil {
+			opts.Timeout = endpointOpts.Timeout.AsDuration()
+		}
+		if len(endpointOpts.Metadata) > 0 {
+			opts.Metadata = endpointOpts.Metadata
 		}
 	}
 
-	// Try to read the natsmicro.kv_store extension
-	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_KvStore) {
-		ext := proto.GetExtension(method.Desc.Options(), natspb.E_KvStore)
-		if kvOpts, ok := ext.(*natspb.KVStoreOptions); ok && kvOpts.Bucket != "" {
-			kv := &KVStoreOpts{
-				Bucket:      kvOpts.Bucket,
-				KeyTemplate: kvOpts.KeyTemplate,
-				Description: kvOpts.Description,
-				MaxHistory:  kvOpts.MaxHistory,
-				ClientOnly:  kvOpts.ClientOnly,
-			}
-			if kvOpts.Ttl != nil {
-				kv.TTL = kvOpts.Ttl.AsDuration()
-			}
-			opts.KVStore = kv
+	// KV Store options
+	if kvOpts, ok := getExtension[*natspb.KVStoreOptions](methodOpts, natspb.E_KvStore); ok && kvOpts.Bucket != "" {
+		kv := &KVStoreOpts{
+			Bucket:      kvOpts.Bucket,
+			KeyTemplate: kvOpts.KeyTemplate,
+			Description: kvOpts.Description,
+			MaxHistory:  kvOpts.MaxHistory,
+			ClientOnly:  kvOpts.ClientOnly,
 		}
+		if kvOpts.Ttl != nil {
+			kv.TTL = kvOpts.Ttl.AsDuration()
+		}
+		opts.KVStore = kv
 	}
 
-	// Try to read the natsmicro.object_store extension
-	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_ObjectStore) {
-		ext := proto.GetExtension(method.Desc.Options(), natspb.E_ObjectStore)
-		if objOpts, ok := ext.(*natspb.ObjectStoreOptions); ok && objOpts.Bucket != "" {
-			obj := &ObjectStoreOpts{
-				Bucket:      objOpts.Bucket,
-				KeyTemplate: objOpts.KeyTemplate,
-				Description: objOpts.Description,
-				ClientOnly:  objOpts.ClientOnly,
-			}
-			if objOpts.Ttl != nil {
-				obj.TTL = objOpts.Ttl.AsDuration()
-			}
-			opts.ObjectStore = obj
+	// Object Store options
+	if objOpts, ok := getExtension[*natspb.ObjectStoreOptions](methodOpts, natspb.E_ObjectStore); ok && objOpts.Bucket != "" {
+		obj := &ObjectStoreOpts{
+			Bucket:      objOpts.Bucket,
+			KeyTemplate: objOpts.KeyTemplate,
+			Description: objOpts.Description,
+			ClientOnly:  objOpts.ClientOnly,
 		}
+		if objOpts.Ttl != nil {
+			obj.TTL = objOpts.Ttl.AsDuration()
+		}
+		opts.ObjectStore = obj
 	}
 
-	// Try to read the natsmicro.stream extension
-	if method.Desc.Options() != nil && proto.HasExtension(method.Desc.Options(), natspb.E_Stream) {
-		ext := proto.GetExtension(method.Desc.Options(), natspb.E_Stream)
-		if streamOpts, ok := ext.(*natspb.StreamOptions); ok {
-			opts.Stream = &StreamOpts{
-				MaxInflight: streamOpts.MaxInflight,
-				Ordered:     streamOpts.Ordered,
-			}
+	// Stream options
+	if streamOpts, ok := getExtension[*natspb.StreamOptions](methodOpts, natspb.E_Stream); ok {
+		opts.Stream = &StreamOpts{
+			MaxInflight: streamOpts.MaxInflight,
+			Ordered:     streamOpts.Ordered,
 		}
 	}
 
