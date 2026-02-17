@@ -95,8 +95,8 @@ func (s *serverStreamSender) CloseWithError(code string, message string) error {
     Header:  nats.Header{},
   }
   msg.Header.Set(natsStreamEndHeader, "true")
-  msg.Header.Set("Status", code)
-  msg.Header.Set("Description", message)
+  msg.Header.Set("Nats-Service-Error-Code", code)
+  msg.Header.Set("Nats-Service-Error", message)
   return s.nc.PublishMsg(msg)
 }
 
@@ -148,8 +148,8 @@ func (r *ClientStreamReceiver) Recv(ctx context.Context) (*nats.Msg, error) {
       return nil, fmt.Errorf("stream closed")
     }
     // Check for error in stream
-    if status := msg.Header.Get("Status"); status != "" {
-      desc := msg.Header.Get("Description")
+    if status := msg.Header.Get("Nats-Service-Error-Code"); status != "" {
+      desc := msg.Header.Get("Nats-Service-Error")
       return nil, fmt.Errorf("stream error [%s]: %s", status, desc)
     }
     // Enforce ordering if requested

@@ -10,7 +10,7 @@ func (g *GoLanguage) IsGoLike() bool { return true }
 func NewGoLanguage() *GoLanguage {
 	return &GoLanguage{newBaseLanguage("go", "_nats.pb.go", "templates/go/*.tmpl",
 		[]string{"header.go.tmpl"},
-		[]string{"shared_header.go.tmpl", "shared.go.tmpl"},
-		[]string{"errors.go.tmpl", "stream_helpers.go.tmpl", "service.go.tmpl", "stream.go.tmpl", "client.go.tmpl"},
+		[]string{"shared_header.go.tmpl", "shared.go.tmpl", "stream_helpers.go.tmpl"},
+		[]string{"errors.go.tmpl", "service.go.tmpl", "stream.go.tmpl", "client.go.tmpl"},
 	)}
 }

@@ -2,13 +2,24 @@
 
 package {{.File.GoPackageName}}
 
+{{- $needsStreamImports := false -}}
+{{- range .File.Services -}}
+{{- range .Methods -}}
+{{- if or (IsBidiStreaming .) (and (IsClientStreaming .) (not (IsServerStreaming .))) -}}
+{{- $needsStreamImports = true -}}
+{{- end -}}
+{{- end -}}
+{{- end}}
+
 import (
   "context"
   "errors"
   "fmt"
   "os"
+{{- if $needsStreamImports}}
   "strconv"
   "sync"
+{{- end}}
   "time"
   "github.com/nats-io/nats.go"
   "github.com/nats-io/nats.go/jetstream"

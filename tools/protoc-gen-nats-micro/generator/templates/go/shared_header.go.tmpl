@@ -5,8 +5,14 @@ package {{.File.GoPackageName}}
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"sync"
 	"time"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/nats-io/nats.go/micro"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protojson"
 )
