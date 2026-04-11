@@ -27,9 +27,7 @@ import (
 {{- if or $needsChunkedRecvImports $needsChunkedSendImports}}
   "io"
 {{- end}}
-{{- if $needsChunkedSendImports}}
   "os"
-{{- end}}
 {{- if $needsStreamImports}}
   "strconv"
   "sync"
