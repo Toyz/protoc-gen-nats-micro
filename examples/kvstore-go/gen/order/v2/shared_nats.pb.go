@@ -94,22 +94,22 @@ type UnaryServerInfo struct {
 }
 
 // UnaryHandler is the actual handler function to be called
-type UnaryHandler func(ctx context.Context, req interface{}) (interface{}, error)
+type UnaryHandler func(ctx context.Context, req any) (any, error)
 
 // UnaryServerInterceptor is middleware that can intercept unary RPC calls on the server
 // It receives the context, request, RPC info, and the handler to call.
 // The interceptor can inspect/modify the request, handle auth, logging, etc.
 // It must call handler(ctx, req) to continue the chain or return early.
-type UnaryServerInterceptor func(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error)
+type UnaryServerInterceptor func(ctx context.Context, req any, info *UnaryServerInfo, handler UnaryHandler) (any, error)
 
 // UnaryInvoker is called by a UnaryClientInterceptor to complete the RPC
-type UnaryInvoker func(ctx context.Context, method string, req, reply interface{}) error
+type UnaryInvoker func(ctx context.Context, method string, req, reply any) error
 
 // UnaryClientInterceptor is middleware that can intercept unary RPC calls on the client
 // It receives the context, method name, request, reply, and invoker.
 // The interceptor can inspect/modify requests, handle retries, logging, etc.
 // It must call invoker(ctx, method, req, reply) to continue the chain.
-type UnaryClientInterceptor func(ctx context.Context, method string, req, reply interface{}, invoker UnaryInvoker) error
+type UnaryClientInterceptor func(ctx context.Context, method string, req, reply any, invoker UnaryInvoker) error
 
 // registerConfig holds configuration for service registration
 type registerConfig struct {
@@ -219,13 +219,13 @@ func chainUnaryServerInterceptors(interceptors []UnaryServerInterceptor) UnarySe
 		return interceptors[0]
 	}
 
-	return func(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *UnaryServerInfo, handler UnaryHandler) (any, error) {
 		// Build chain from last to first
 		chainedHandler := handler
 		for i := n - 1; i >= 0; i-- {
 			interceptor := interceptors[i]
 			nextHandler := chainedHandler
-			chainedHandler = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+			chainedHandler = func(currentCtx context.Context, currentReq any) (any, error) {
 				return interceptor(currentCtx, currentReq, info, nextHandler)
 			}
 		}
@@ -290,13 +290,13 @@ func chainUnaryClientInterceptors(interceptors []UnaryClientInterceptor) UnaryCl
 		return interceptors[0]
 	}
 
-	return func(ctx context.Context, method string, req, reply interface{}, invoker UnaryInvoker) error {
+	return func(ctx context.Context, method string, req, reply any, invoker UnaryInvoker) error {
 		// Build chain from last to first
 		chainedInvoker := invoker
 		for i := n - 1; i >= 0; i-- {
 			interceptor := interceptors[i]
 			nextInvoker := chainedInvoker
-			chainedInvoker = func(currentCtx context.Context, currentMethod string, currentReq, currentReply interface{}) error {
+			chainedInvoker = func(currentCtx context.Context, currentMethod string, currentReq, currentReply any) error {
 				return interceptor(currentCtx, currentMethod, currentReq, currentReply, nextInvoker)
 			}
 		}

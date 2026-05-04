@@ -513,7 +513,7 @@ Interceptors provide middleware for logging, auth, metrics, and tracing.
 ### Server Interceptors
 
 ```go
-func loggingInterceptor(ctx context.Context, req interface{}, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (interface{}, error) {
+func loggingInterceptor(ctx context.Context, req any, info *productv1.UnaryServerInfo, handler productv1.UnaryHandler) (any, error) {
     start := time.Now()
 
     // Read incoming request headers
@@ -557,7 +557,7 @@ productv1.RegisterProductServiceHandlers(nc, impl,
 ### Client Interceptors
 
 ```go
-func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
+func clientLoggingInterceptor(ctx context.Context, method string, req, reply any, invoker productv1.UnaryInvoker) error {
     // Add request headers
     headers := nats.Header{}
     headers.Set("X-Trace-Id", generateTraceID())

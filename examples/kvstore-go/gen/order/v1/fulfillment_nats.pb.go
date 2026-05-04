@@ -316,7 +316,7 @@ func (h *orderFulfillmentServiceHandlers) PrepareOrder(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*PrepareOrderRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -325,7 +325,7 @@ func (h *orderFulfillmentServiceHandlers) PrepareOrder(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -439,7 +439,7 @@ func (h *orderFulfillmentServiceHandlers) ShipOrder(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*ShipOrderRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -448,7 +448,7 @@ func (h *orderFulfillmentServiceHandlers) ShipOrder(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -562,7 +562,7 @@ func (h *orderFulfillmentServiceHandlers) GetFulfillmentStatus(req micro.Request
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetFulfillmentStatusRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -571,7 +571,7 @@ func (h *orderFulfillmentServiceHandlers) GetFulfillmentStatus(req micro.Request
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -706,7 +706,7 @@ func (c *OrderFulfillmentServiceNatsClient) PrepareOrder(ctx context.Context, re
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".prepare_order"
 
 		// Marshal request
@@ -801,7 +801,7 @@ func (c *OrderFulfillmentServiceNatsClient) ShipOrder(ctx context.Context, req *
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".ship_order"
 
 		// Marshal request
@@ -896,7 +896,7 @@ func (c *OrderFulfillmentServiceNatsClient) GetFulfillmentStatus(ctx context.Con
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_fulfillment_status"
 
 		// Marshal request

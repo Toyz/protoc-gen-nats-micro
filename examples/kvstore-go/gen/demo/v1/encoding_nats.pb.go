@@ -313,7 +313,7 @@ func (h *jSONServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*EchoRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -322,7 +322,7 @@ func (h *jSONServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -436,7 +436,7 @@ func (h *jSONServiceHandlers) GetUser(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetUserRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -445,7 +445,7 @@ func (h *jSONServiceHandlers) GetUser(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -579,7 +579,7 @@ func (c *JSONServiceNatsClient) Echo(ctx context.Context, req *EchoRequest) (*Ec
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".echo"
 
 		// Marshal request
@@ -674,7 +674,7 @@ func (c *JSONServiceNatsClient) GetUser(ctx context.Context, req *GetUserRequest
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_user"
 
 		// Marshal request
@@ -1062,7 +1062,7 @@ func (h *binaryServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*EchoRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -1071,7 +1071,7 @@ func (h *binaryServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -1185,7 +1185,7 @@ func (h *binaryServiceHandlers) GetUser(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetUserRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -1194,7 +1194,7 @@ func (h *binaryServiceHandlers) GetUser(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -1328,7 +1328,7 @@ func (c *BinaryServiceNatsClient) Echo(ctx context.Context, req *EchoRequest) (*
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".echo"
 
 		// Marshal request
@@ -1423,7 +1423,7 @@ func (c *BinaryServiceNatsClient) GetUser(ctx context.Context, req *GetUserReque
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_user"
 
 		// Marshal request

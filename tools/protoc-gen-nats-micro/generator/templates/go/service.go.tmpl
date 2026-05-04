@@ -261,7 +261,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*{{.Input.GoIdent.GoName}})
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -270,7 +270,7 @@ func (h *{{ToLowerFirst $.Service.GoName}}Handlers) {{.GoName}}(req micro.Reques
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{

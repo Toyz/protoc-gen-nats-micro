@@ -354,7 +354,7 @@ func (h *productServiceHandlers) CreateProduct(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*CreateProductRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -363,7 +363,7 @@ func (h *productServiceHandlers) CreateProduct(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -477,7 +477,7 @@ func (h *productServiceHandlers) GetProduct(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetProductRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -486,7 +486,7 @@ func (h *productServiceHandlers) GetProduct(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -600,7 +600,7 @@ func (h *productServiceHandlers) UpdateProduct(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*UpdateProductRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -609,7 +609,7 @@ func (h *productServiceHandlers) UpdateProduct(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -723,7 +723,7 @@ func (h *productServiceHandlers) DeleteProduct(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*DeleteProductRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -732,7 +732,7 @@ func (h *productServiceHandlers) DeleteProduct(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -847,7 +847,7 @@ func (h *productServiceHandlers) SearchProducts(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*SearchProductsRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -856,7 +856,7 @@ func (h *productServiceHandlers) SearchProducts(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -993,7 +993,7 @@ func (c *ProductServiceNatsClient) CreateProduct(ctx context.Context, req *Creat
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".create_product"
 
 		// Marshal request
@@ -1088,7 +1088,7 @@ func (c *ProductServiceNatsClient) GetProduct(ctx context.Context, req *GetProdu
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_product"
 
 		// Marshal request
@@ -1183,7 +1183,7 @@ func (c *ProductServiceNatsClient) UpdateProduct(ctx context.Context, req *Updat
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".update_product"
 
 		// Marshal request
@@ -1278,7 +1278,7 @@ func (c *ProductServiceNatsClient) DeleteProduct(ctx context.Context, req *Delet
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".delete_product"
 
 		// Marshal request
@@ -1373,7 +1373,7 @@ func (c *ProductServiceNatsClient) SearchProducts(ctx context.Context, req *Sear
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".search_products"
 
 		// Marshal request

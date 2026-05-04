@@ -317,7 +317,7 @@ func (h *exampleServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*EchoRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -326,7 +326,7 @@ func (h *exampleServiceHandlers) Echo(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -440,7 +440,7 @@ func (h *exampleServiceHandlers) GetGreeting(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetGreetingRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -449,7 +449,7 @@ func (h *exampleServiceHandlers) GetGreeting(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -583,7 +583,7 @@ func (c *ExampleServiceNatsClient) Echo(ctx context.Context, req *EchoRequest) (
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".echo"
 
 		// Marshal request
@@ -678,7 +678,7 @@ func (c *ExampleServiceNatsClient) GetGreeting(ctx context.Context, req *GetGree
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_greeting"
 
 		// Marshal request

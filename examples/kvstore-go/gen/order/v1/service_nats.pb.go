@@ -322,7 +322,7 @@ func (h *orderServiceHandlers) CreateOrder(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*CreateOrderRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -331,7 +331,7 @@ func (h *orderServiceHandlers) CreateOrder(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -445,7 +445,7 @@ func (h *orderServiceHandlers) GetOrder(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*GetOrderRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -454,7 +454,7 @@ func (h *orderServiceHandlers) GetOrder(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -568,7 +568,7 @@ func (h *orderServiceHandlers) ListOrders(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*ListOrdersRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -577,7 +577,7 @@ func (h *orderServiceHandlers) ListOrders(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -691,7 +691,7 @@ func (h *orderServiceHandlers) UpdateOrderStatus(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*UpdateOrderStatusRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -700,7 +700,7 @@ func (h *orderServiceHandlers) UpdateOrderStatus(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -836,7 +836,7 @@ func (c *OrderServiceNatsClient) CreateOrder(ctx context.Context, req *CreateOrd
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".create_order"
 
 		// Marshal request
@@ -931,7 +931,7 @@ func (c *OrderServiceNatsClient) GetOrder(ctx context.Context, req *GetOrderRequ
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".get_order"
 
 		// Marshal request
@@ -1026,7 +1026,7 @@ func (c *OrderServiceNatsClient) ListOrders(ctx context.Context, req *ListOrders
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".list_orders"
 
 		// Marshal request
@@ -1121,7 +1121,7 @@ func (c *OrderServiceNatsClient) UpdateOrderStatus(ctx context.Context, req *Upd
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".update_order_status"
 
 		// Marshal request
@@ -1508,7 +1508,7 @@ func (h *orderTrackingServiceHandlers) TrackOrder(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*TrackOrderRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -1517,7 +1517,7 @@ func (h *orderTrackingServiceHandlers) TrackOrder(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -1631,7 +1631,7 @@ func (h *orderTrackingServiceHandlers) UpdateTracking(req micro.Request) {
 	}
 
 	// Define the handler function
-	handler := func(ctx context.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, request any) (any, error) {
 		typedReq, ok := request.(*UpdateTrackingRequest)
 		if !ok {
 			return nil, fmt.Errorf("invalid request type")
@@ -1640,7 +1640,7 @@ func (h *orderTrackingServiceHandlers) UpdateTracking(req micro.Request) {
 	}
 
 	// Execute through interceptor chain if configured
-	var resp interface{}
+	var resp any
 	var err error
 	if h.interceptor != nil {
 		info := &UnaryServerInfo{
@@ -1774,7 +1774,7 @@ func (c *OrderTrackingServiceNatsClient) TrackOrder(ctx context.Context, req *Tr
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".track_order"
 
 		// Marshal request
@@ -1869,7 +1869,7 @@ func (c *OrderTrackingServiceNatsClient) UpdateTracking(ctx context.Context, req
 	ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
 
 	// Define the invoker function that performs the actual NATS call
-	invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+	invoker := func(invokerCtx context.Context, method string, request, reply any) error {
 		subject := c.subjectPrefix + ".update_tracking"
 
 		// Marshal request

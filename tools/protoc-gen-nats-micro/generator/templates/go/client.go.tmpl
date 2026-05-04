@@ -85,7 +85,7 @@ func (c *{{$.Service.GoName}}NatsClient) {{.GoName}}(ctx context.Context, req *{
   ctx = context.WithValue(ctx, responseHeadersKey, responseHeadersPtr)
   
   // Define the invoker function that performs the actual NATS call
-  invoker := func(invokerCtx context.Context, method string, request, reply interface{}) error {
+  invoker := func(invokerCtx context.Context, method string, request, reply any) error {
     subject := c.subjectPrefix + ".{{ToSnakeCase .GoName}}"
     
     // Marshal request

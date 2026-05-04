@@ -942,29 +942,29 @@ func ResponseHeaders(ctx context.Context) nats.Header  // Read response headers
 // Server interceptor signature
 type UnaryServerInterceptor func(
     ctx context.Context,
-    req interface{},
+    req any,
     info *UnaryServerInfo,
     handler UnaryHandler,
-) (interface{}, error)
+) (any, error)
 
 type UnaryServerInfo struct {
     Method string
 }
 
-type UnaryHandler func(ctx context.Context, req interface{}) (interface{}, error)
+type UnaryHandler func(ctx context.Context, req any) (any, error)
 
 // Client interceptor signature
 type UnaryClientInterceptor func(
     ctx context.Context,
     method string,
-    req, reply interface{},
+    req, reply any,
     invoker UnaryInvoker,
 ) error
 
 type UnaryInvoker func(
     ctx context.Context,
     method string,
-    req, reply interface{},
+    req, reply any,
 ) error
 ```
 

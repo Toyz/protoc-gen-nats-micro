@@ -9,10 +9,10 @@ Interceptors wrap every handler call. They see the full request context and can 
 ```go
 func loggingInterceptor(
     ctx context.Context,
-    req interface{},
+    req any,
     info *productv1.UnaryServerInfo,
     handler productv1.UnaryHandler,
-) (interface{}, error) {
+) (any, error) {
     start := time.Now()
     log.Printf("→ %s.%s", info.Service, info.Method)
 
@@ -43,7 +43,7 @@ Same pattern on the client side:
 func clientTraceInterceptor(
     ctx context.Context,
     method string,
-    req, reply interface{},
+    req, reply any,
     invoker UnaryInvoker,
 ) error {
     // Add trace header before sending
@@ -77,7 +77,7 @@ func myHandler(ctx context.Context, req *MyRequest) (*MyResponse, error) {
 ### Setting Response Headers (Server)
 
 ```go
-func myInterceptor(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error) {
+func myInterceptor(ctx context.Context, req any, info *UnaryServerInfo, handler UnaryHandler) (any, error) {
     responseHeaders := nats.Header{}
     responseHeaders.Set("X-Server-Version", "1.0.0")
     SetResponseHeaders(ctx, responseHeaders)
@@ -111,7 +111,7 @@ serverVersion := headers.Get("X-Server-Version")
 ### Authentication
 
 ```go
-func authInterceptor(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error) {
+func authInterceptor(ctx context.Context, req any, info *UnaryServerInfo, handler UnaryHandler) (any, error) {
     headers := IncomingHeaders(ctx)
     token := headers.Get("Authorization")
     if token == "" {
@@ -125,7 +125,7 @@ func authInterceptor(ctx context.Context, req interface{}, info *UnaryServerInfo
 ### Request Timing
 
 ```go
-func timingInterceptor(ctx context.Context, req interface{}, info *UnaryServerInfo, handler UnaryHandler) (interface{}, error) {
+func timingInterceptor(ctx context.Context, req any, info *UnaryServerInfo, handler UnaryHandler) (any, error) {
     start := time.Now()
     resp, err := handler(ctx, req)
     duration := time.Since(start)

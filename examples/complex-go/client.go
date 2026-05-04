@@ -16,7 +16,7 @@ import (
 )
 
 // Example client interceptor for request logging - demonstrates sending and reading headers
-func clientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, invoker productv1.UnaryInvoker) error {
+func clientLoggingInterceptor(ctx context.Context, method string, req, reply any, invoker productv1.UnaryInvoker) error {
 	log.Printf("→ [Client] Calling %s", method)
 	start := time.Now()
 
@@ -66,7 +66,7 @@ func main() {
 	)
 
 	// Order client also with interceptor
-	orderClientLoggingInterceptor := func(ctx context.Context, method string, req, reply interface{}, invoker orderv1.UnaryInvoker) error {
+	orderClientLoggingInterceptor := func(ctx context.Context, method string, req, reply any, invoker orderv1.UnaryInvoker) error {
 		log.Printf("→ [OrderClient] Calling %s", method)
 		start := time.Now()
 		err := invoker(ctx, method, req, reply)
